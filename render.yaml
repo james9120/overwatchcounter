@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: overwatch-counter
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    healthCheckPath: /
