@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{% block title %}Overwatch 2 Counter Picker{% endblock %}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css">
+    <style>
+        body {
+            background-color: #405275;
+            color: #f0edf2;
+            font-family: 'Futura', sans-serif;
+        }
+        
+        .navbar {
+            background-color: rgba(0, 0, 0, 0.8);
+        }
+        
+        .card {
+            background-color: rgba(0, 0, 0, 0.6);
+            border: 2px solid #f99e1a;
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(249, 158, 26, 0.5);
+        }
+        
+        .btn-primary {
+            background-color: #218ffe;
+            border-color: #218ffe;
+        }
+        
+        .btn-primary:hover {
+            background-color: #0d6efd;
+            border-color: #0d6efd;
+        }
+        
+        .hero-card {
+            transition: transform 0.2s;
+            cursor: pointer;
+            height: 100%;
+        }
+        
+        .hero-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(249, 158, 26, 0.8);
+        }
+        
+        .hero-icon {
+            width: 64px;
+            height: 64px;
+            border-radius: 8px;
+            border: 2px solid #fff;
+        }
+        
+        .tank-border {
+            border-color: #2980b9;
+        }
+        
+        .damage-border {
+            border-color: #c0392b;
+        }
+        
+        .support-border {
+            border-color: #27ae60;
+        }
+        
+        .unknown-border {
+            border-color: #777;
+        }
+        
+        .effectiveness {
+            width: 100%;
+            height: 6px;
+            background-color: #e74c3c;
+            border-radius: 3px;
+            margin-top: 5px;
+        }
+        
+        .effectiveness-fill {
+            height: 100%;
+            background-color: #2ecc71;
+            border-radius: 3px;
+        }
+        
+        .filter-btn {
+            margin-right: 5px;
+            margin-bottom: 5px;
+        }
+        
+        .filter-btn.active {
+            background-color: #f99e1a;
+            border-color: #f99e1a;
+        }
+        
+        .hero-name {
+            font-weight: bold;
+            margin-top: 5px;
+        }
+        
+        .result-header {
+            background: linear-gradient(135deg, #f99e1a, #218ffe);
+            color: #fff;
+            padding: 1.5rem;
+            border-top-left-radius: 8px;
+            border-top-right-radius: 8px;
+        }
+        
+        .result-body {
+            padding: 1.5rem;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: #f0edf2;
+        }
+        
+        .hero-weakness {
+            background-color: rgba(231, 76, 60, 0.2);
+            border-left: 4px solid #e74c3c;
+            padding: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .tip-card {
+            background-color: rgba(52, 152, 219, 0.1);
+            border-left: 4px solid #218ffe;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+        
+        .synergy-badge {
+            background-color: #8e44ad;
+            margin-right: 5px;
+            margin-bottom: 5px;
+        }
+        
+        .map-badge {
+            background-color: #16a085;
+            margin-right: 5px;
+            margin-bottom: 5px;
+        }
+        
+        .search-box {
+            background-color: rgba(255, 255, 255, 0.2);
+            border: 1px solid #f0edf2;
+            color: #f0edf2;
+        }
+        
+        .search-box::placeholder {
+            color: rgba(255, 255, 255, 0.7);
+        }
+        
+        .difficulty-meter {
+            margin-top: 8px;
+        }
+        
+        .difficulty-pip {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #444;
+            margin-right: 4px;
+        }
+        
+        .difficulty-pip.active {
+            background-color: #f99e1a;
+        }
+        
+        .difficulty-1 .difficulty-pip.active {
+            background-color: #27ae60;  /* Green for easy */
+        }
+        
+        .difficulty-2 .difficulty-pip.active {
+            background-color: #f39c12;  /* Orange for medium */
+        }
+        
+        .difficulty-3 .difficulty-pip.active {
+            background-color: #e74c3c;  /* Red for hard */
+        }
+        
+        .beginner-friendly-section {
+            background-color: rgba(39, 174, 96, 0.2);
+            border-left: 4px solid #27ae60;
+            padding: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .difficulty-filter .btn {
+            margin-right: 5px;
+        }
+        
+        @media (max-width: 768px) {
+            .hero-card {
+                margin-bottom: 15px;
+            }
+        }
