@@ -1,6 +1,6 @@
 import os
 import pandas as pd
-from flask import Flask, request, render_template_string, redirect, url_for, jsonify
+from flask import Flask, request, render_template_string, render_template, redirect, url_for, jsonify, session
 
 # Initialize Flask app with static file handling
 # Make sure Flask knows exactly where to find templates
@@ -8,6 +8,9 @@ app = Flask(__name__,
             static_url_path='/static', 
             static_folder='static',
             template_folder=os.path.abspath('templates'))
+
+# Configure session for storing multi-enemy selection
+app.secret_key = os.urandom(24)  # Required for session management
 
 def load_counter_data():
     """
@@ -203,6 +206,15 @@ def get_counter_difficulty(counter, enemy):
     # Default to medium effectiveness if all else fails
     return 3
 
+# Calculate team counter score
+def get_team_counter_score(counter_hero, enemy_heroes):
+    """Calculate how effective a hero is against multiple enemies"""
+    total_score = 0
+    for enemy in enemy_heroes:
+        total_score += get_counter_difficulty(counter_hero, enemy)
+    # Return average score
+    return total_score / len(enemy_heroes)
+
 # Hero image URLs - updated to use local icon files with .webp extension and proper spacing handling
 def get_hero_image_url(hero_name):
     # Get the hero role to use the appropriate subfolder
@@ -332,1042 +344,42 @@ try:
 except FileNotFoundError as e:
     print(f"Error: {e}")
     print("Please create the Excel file with the required columns.")
+    # Initialize with empty data
     counterData = {}
     enemy_characters = []
     heroes_by_role = {"Tank": [], "Damage": [], "Support": [], "Unknown": []}
-
-# ------------------------------------------------------------------
-# TEMPLATES
-# ------------------------------------------------------------------
-
-# Step 1: Select Enemy Hero 
-step1_template = '''
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Overwatch 2 Counter Picker</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css">
-    <style>
-        body {
-            background-color: #405275;
-            color: #f0edf2;
-            font-family: 'Futura', sans-serif;
-        }
-        
-        .navbar {
-            background-color: rgba(0, 0, 0, 0.8);
-        }
-        
-        .card {
-            background-color: rgba(0, 0, 0, 0.6);
-            border: 2px solid #f99e1a;
-            border-radius: 10px;
-            box-shadow: 0 0 15px rgba(249, 158, 26, 0.5);
-        }
-        
-        .btn-primary {
-            background-color: #218ffe;
-            border-color: #218ffe;
-        }
-        
-        .btn-primary:hover {
-            background-color: #0d6efd;
-            border-color: #0d6efd;
-        }
-        
-        .hero-card {
-            transition: transform 0.2s;
-            cursor: pointer;
-            height: 100%;
-        }
-        
-        .hero-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 5px 15px rgba(249, 158, 26, 0.8);
-        }
-        
-        .hero-icon {
-            width: 64px;
-            height: 64px;
-            border-radius: 8px;
-            border: 2px solid #fff;
-        }
-        
-        .tank-border {
-            border-color: #2980b9;
-        }
-        
-        .damage-border {
-            border-color: #c0392b;
-        }
-        
-        .support-border {
-            border-color: #27ae60;
-        }
-        
-        .unknown-border {
-            border-color: #777;
-        }
-        
-        .effectiveness {
-            width: 100%;
-            height: 6px;
-            background-color: #e74c3c;
-            border-radius: 3px;
-            margin-top: 5px;
-        }
-        
-        .effectiveness-fill {
-            height: 100%;
-            background-color: #2ecc71;
-            border-radius: 3px;
-        }
-        
-        .filter-btn {
-            margin-right: 5px;
-            margin-bottom: 5px;
-        }
-        
-        .filter-btn.active {
-            background-color: #f99e1a;
-            border-color: #f99e1a;
-        }
-        
-        .hero-name {
-            font-weight: bold;
-            margin-top: 5px;
-        }
-        
-        .result-header {
-            background: linear-gradient(135deg, #f99e1a, #218ffe);
-            color: #fff;
-            padding: 1.5rem;
-            border-top-left-radius: 8px;
-            border-top-right-radius: 8px;
-        }
-        
-        .result-body {
-            padding: 1.5rem;
-            background-color: rgba(0, 0, 0, 0.7);
-            color: #f0edf2;
-        }
-        
-        .hero-weakness {
-            background-color: rgba(231, 76, 60, 0.2);
-            border-left: 4px solid #e74c3c;
-            padding: 10px;
-            margin-bottom: 15px;
-        }
-        
-        .tip-card {
-            background-color: rgba(52, 152, 219, 0.1);
-            border-left: 4px solid #218ffe;
-            padding: 10px;
-            margin-bottom: 10px;
-        }
-        
-        .synergy-badge {
-            background-color: #8e44ad;
-            margin-right: 5px;
-            margin-bottom: 5px;
-        }
-        
-        .map-badge {
-            background-color: #16a085;
-            margin-right: 5px;
-            margin-bottom: 5px;
-        }
-        
-        .search-box {
-            background-color: rgba(255, 255, 255, 0.2);
-            border: 1px solid #f0edf2;
-            color: #f0edf2;
-        }
-        
-        .search-box::placeholder {
-            color: rgba(255, 255, 255, 0.7);
-        }
-        
-        .difficulty-meter {
-            margin-top: 8px;
-        }
-        
-        .difficulty-pip {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background-color: #444;
-            margin-right: 4px;
-        }
-        
-        .difficulty-pip.active {
-            background-color: #f99e1a;
-        }
-        
-        .difficulty-1 .difficulty-pip.active {
-            background-color: #27ae60;  /* Green for easy */
-        }
-        
-        .difficulty-2 .difficulty-pip.active {
-            background-color: #f39c12;  /* Orange for medium */
-        }
-        
-        .difficulty-3 .difficulty-pip.active {
-            background-color: #e74c3c;  /* Red for hard */
-        }
-        
-        .beginner-friendly-section {
-            background-color: rgba(39, 174, 96, 0.2);
-            border-left: 4px solid #27ae60;
-            padding: 10px;
-            margin-bottom: 15px;
-        }
-        
-        .difficulty-filter .btn {
-            margin-right: 5px;
-        }
-        
-        @media (max-width: 768px) {
-            .hero-card {
-                margin-bottom: 15px;
-            }
-        }
-    </style>
-</head>
-<body>
-    <nav class="navbar navbar-expand-lg navbar-dark mb-4">
-        <div class="container">
-            <a class="navbar-brand" href="{{ url_for('enemy_selection') }}">
-                <span style="color: #f99e1a; font-weight: bold;">OVERWATCH</span> 
-                <span style="color: #218ffe; font-weight: bold;">COUNTER</span>
-            </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('enemy_selection') }}">Home</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#aboutModal">About</a>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </nav>
     
-    <div class="container py-3">
-        {% if enemies|length == 0 %}
-        <div class="alert alert-danger text-center">
-            <h4>Error: Excel file not found or data missing</h4>
-            <p>Please make sure 'Overwatch Counters.xlsx' exists in the application folder with the following columns:</p>
-            <p><code>Role, Hero, Tank-Counter, Damage-Counter, Support-Counter, Weaknesses:</code></p>
-        </div>
-        {% else %}
-        <div class="row justify-content-center">
-            <div class="col-md-8 col-lg-6">
-                <div class="card shadow mb-4">
-                    <div class="card-header bg-transparent border-0">
-                        <h2 class="text-center mb-0" style="color: #f99e1a;">Who's Giving You Trouble?</h2>
-                    </div>
-                    <div class="card-body">
-                        <div class="mb-4">
-                            <input type="text" id="heroSearch" class="form-control search-box" placeholder="Search for a hero...">
-                        </div>
-                        
-                        <div class="mb-3">
-                            <div class="d-flex flex-wrap">
-                                <button class="btn btn-sm btn-outline-light filter-btn active" data-role="all">All</button>
-                                <button class="btn btn-sm btn-outline-primary filter-btn" data-role="Tank">Tanks</button>
-                                <button class="btn btn-sm btn-outline-danger filter-btn" data-role="Damage">Damage</button>
-                                <button class="btn btn-sm btn-outline-success filter-btn" data-role="Support">Support</button>
-                            </div>
-                        </div>
-                        
-                        <div class="row" id="heroGrid">
-                            {% for hero in enemies %}
-                            <div class="col-4 col-sm-3 mb-3 hero-item" data-role="{{ hero_roles[hero] }}">
-                                <a href="{{ url_for('select_class', enemy=hero) }}" class="text-decoration-none">
-                                    <div class="hero-card card text-center p-2">
-                                        <img src="{{ hero_image_url(hero) }}" alt="{{ hero }}" class="hero-icon mx-auto {{ hero_roles[hero].lower() }}-border">
-                                        <div class="hero-name text-light">{{ hero }}</div>
-                                    </div>
-                                </a>
-                            </div>
-                            {% endfor %}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        {% endif %}
-    </div>
-    
-    <!-- About Modal -->
-    <div class="modal fade" id="aboutModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content bg-dark text-light">
-                <div class="modal-header">
-                    <h5 class="modal-title">About Overwatch Counter Picker</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <p>This tool helps Overwatch 2 players find effective counter picks against enemy heroes.</p>
-                    <p>Select an enemy hero that's giving you trouble, then choose your preferred role to see recommended counters with tactical tips.</p>
-                    <p>Data is based on general gameplay experience and may vary depending on skill level and gameplay style.</p>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        // Hero search functionality
-        document.getElementById('heroSearch')?.addEventListener('input', function() {
-            const searchTerm = this.value.toLowerCase();
-            const heroes = document.querySelectorAll('.hero-item');
-            
-            heroes.forEach(hero => {
-                const heroName = hero.querySelector('.hero-name').textContent.toLowerCase();
-                if (heroName.includes(searchTerm)) {
-                    hero.style.display = '';
-                } else {
-                    hero.style.display = 'none';
-                }
-            });
-        });
-        
-        // Role filter functionality
-        document.querySelectorAll('.filter-btn')?.forEach(button => {
-            button.addEventListener('click', function() {
-                // Update active button
-                document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
-                this.classList.add('active');
-                
-                const role = this.getAttribute('data-role');
-                const heroes = document.querySelectorAll('.hero-item');
-                
-                heroes.forEach(hero => {
-                    if (role === 'all' || hero.getAttribute('data-role') === role) {
-                        hero.style.display = '';
-                    } else {
-                        hero.style.display = 'none';
-                    }
-                });
-            });
-        });
-    </script>
-</body>
-</html>
-'''
-
-# Step 2: Select Role 
-step2_template = '''
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Overwatch 2 Counter Picker</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css">
-    <style>
-        body {
-            background-color: #405275;
-            color: #f0edf2;
-            font-family: 'Futura', sans-serif;
-        }
-        
-        .navbar {
-            background-color: rgba(0, 0, 0, 0.8);
-        }
-        
-        .card {
-            background-color: rgba(0, 0, 0, 0.6);
-            border: 2px solid #f99e1a;
-            border-radius: 10px;
-            box-shadow: 0 0 15px rgba(249, 158, 26, 0.5);
-        }
-        
-        .btn-primary {
-            background-color: #218ffe;
-            border-color: #218ffe;
-        }
-        
-        .btn-primary:hover {
-            background-color: #0d6efd;
-            border-color: #0d6efd;
-        }
-        
-        .hero-card {
-            transition: transform 0.2s;
-            cursor: pointer;
-            height: 100%;
-        }
-        
-        .hero-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 5px 15px rgba(249, 158, 26, 0.8);
-        }
-        
-        .hero-icon {
-            width: 64px;
-            height: 64px;
-            border-radius: 8px;
-            border: 2px solid #fff;
-        }
-        
-        .tank-border {
-            border-color: #2980b9;
-        }
-        
-        .damage-border {
-            border-color: #c0392b;
-        }
-        
-        .support-border {
-            border-color: #27ae60;
-        }
-        
-        .unknown-border {
-            border-color: #777;
-        }
-        
-        .effectiveness {
-            width: 100%;
-            height: 6px;
-            background-color: #e74c3c;
-            border-radius: 3px;
-            margin-top: 5px;
-        }
-        
-        .effectiveness-fill {
-            height: 100%;
-            background-color: #2ecc71;
-            border-radius: 3px;
-        }
-        
-        .filter-btn {
-            margin-right: 5px;
-            margin-bottom: 5px;
-        }
-        
-        .filter-btn.active {
-            background-color: #f99e1a;
-            border-color: #f99e1a;
-        }
-        
-        .hero-name {
-            font-weight: bold;
-            margin-top: 5px;
-        }
-        
-        .result-header {
-            background: linear-gradient(135deg, #f99e1a, #218ffe);
-            color: #fff;
-            padding: 1.5rem;
-            border-top-left-radius: 8px;
-            border-top-right-radius: 8px;
-        }
-        
-        .result-body {
-            padding: 1.5rem;
-            background-color: rgba(0, 0, 0, 0.7);
-            color: #f0edf2;
-        }
-        
-        .hero-weakness {
-            background-color: rgba(231, 76, 60, 0.2);
-            border-left: 4px solid #e74c3c;
-            padding: 10px;
-            margin-bottom: 15px;
-        }
-        
-        .tip-card {
-            background-color: rgba(52, 152, 219, 0.1);
-            border-left: 4px solid #218ffe;
-            padding: 10px;
-            margin-bottom: 10px;
-        }
-        
-        .synergy-badge {
-            background-color: #8e44ad;
-            margin-right: 5px;
-            margin-bottom: 5px;
-        }
-        
-        .map-badge {
-            background-color: #16a085;
-            margin-right: 5px;
-            margin-bottom: 5px;
-        }
-        
-        .search-box {
-            background-color: rgba(255, 255, 255, 0.2);
-            border: 1px solid #f0edf2;
-            color: #f0edf2;
-        }
-        
-        .search-box::placeholder {
-            color: rgba(255, 255, 255, 0.7);
-        }
-        
-        .difficulty-meter {
-            margin-top: 8px;
-        }
-        
-        .difficulty-pip {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background-color: #444;
-            margin-right: 4px;
-        }
-        
-        .difficulty-pip.active {
-            background-color: #f99e1a;
-        }
-        
-        .difficulty-1 .difficulty-pip.active {
-            background-color: #27ae60;  /* Green for easy */
-        }
-        
-        .difficulty-2 .difficulty-pip.active {
-            background-color: #f39c12;  /* Orange for medium */
-        }
-        
-        .difficulty-3 .difficulty-pip.active {
-            background-color: #e74c3c;  /* Red for hard */
-        }
-        
-        .beginner-friendly-section {
-            background-color: rgba(39, 174, 96, 0.2);
-            border-left: 4px solid #27ae60;
-            padding: 10px;
-            margin-bottom: 15px;
-        }
-        
-        .difficulty-filter .btn {
-            margin-right: 5px;
-        }
-        
-        @media (max-width: 768px) {
-            .hero-card {
-                margin-bottom: 15px;
-            }
-        }
-    </style>
-</head>
-<body>
-    <nav class="navbar navbar-expand-lg navbar-dark mb-4">
-        <div class="container">
-            <a class="navbar-brand" href="{{ url_for('enemy_selection') }}">
-                <span style="color: #f99e1a; font-weight: bold;">OVERWATCH</span> 
-                <span style="color: #218ffe; font-weight: bold;">COUNTER</span>
-            </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('enemy_selection') }}">Home</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#aboutModal">About</a>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </nav>
-    
-    <div class="container py-3">
-        <div class="row justify-content-center">
-            <div class="col-md-8 col-lg-6">
-                <div class="card shadow mb-4">
-                    <div class="card-header bg-transparent border-0">
-                        <h2 class="text-center mb-0" style="color: #f99e1a;">Choose Your Role</h2>
-                        <p class="text-center mt-2 mb-0">Counter-picking: <strong>{{ enemy }}</strong></p>
-                    </div>
-                    <div class="card-body">
-                        <div class="row">
-                            <div class="col-md-4 mb-3">
-                                <a href="{{ url_for('show_counters', enemy=enemy, role='Tank') }}" class="text-decoration-none">
-                                    <div class="card hero-card" style="border-color: #2980b9;">
-                                        <div class="card-body text-center">
-                                            <h3 style="color: #2980b9;">Tank</h3>
-                                            <p class="mb-0">High HP frontline heroes that create space</p>
-                                        </div>
-                                    </div>
-                                </a>
-                            </div>
-                            <div class="col-md-4 mb-3">
-                                <a href="{{ url_for('show_counters', enemy=enemy, role='Damage') }}" class="text-decoration-none">
-                                    <div class="card hero-card" style="border-color: #c0392b;">
-                                        <div class="card-body text-center">
-                                            <h3 style="color: #c0392b;">Damage</h3>
-                                            <p class="mb-0">High damage output heroes that secure eliminations</p>
-                                        </div>
-                                    </div>
-                                </a>
-                            </div>
-                            <div class="col-md-4 mb-3">
-                                <a href="{{ url_for('show_counters', enemy=enemy, role='Support') }}" class="text-decoration-none">
-                                    <div class="card hero-card" style="border-color: #27ae60;">
-                                        <div class="card-body text-center">
-                                            <h3 style="color: #27ae60;">Support</h3>
-                                            <p class="mb-0">Healing heroes that keep the team alive</p>
-                                        </div>
-                                    </div>
-                                </a>
-                            </div>
-                        </div>
-                        <div class="text-center mt-3">
-                            <a href="{{ url_for('enemy_selection') }}" class="btn btn-secondary">
-                                <i class="bi bi-arrow-left"></i> Select Different Enemy
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- About Modal -->
-    <div class="modal fade" id="aboutModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content bg-dark text-light">
-                <div class="modal-header">
-                    <h5 class="modal-title">About Overwatch Counter Picker</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <p>This tool helps Overwatch 2 players find effective counter picks against enemy heroes.</p>
-                    <p>Select an enemy hero that's giving you trouble, then choose your preferred role to see recommended counters with tactical tips.</p>
-                    <p>Data is based on general gameplay experience and may vary depending on skill level and gameplay style.</p>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
-'''
-
-# Step 3: Show Counters
-step3_template = '''
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Overwatch 2 Counter Picker</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css">
-    <style>
-        body {
-            background-color: #405275;
-            color: #f0edf2;
-            font-family: 'Futura', sans-serif;
-        }
-        
-        .navbar {
-            background-color: rgba(0, 0, 0, 0.8);
-        }
-        
-        .card {
-            background-color: rgba(0, 0, 0, 0.6);
-            border: 2px solid #f99e1a;
-            border-radius: 10px;
-            box-shadow: 0 0 15px rgba(249, 158, 26, 0.5);
-        }
-        
-        .btn-primary {
-            background-color: #218ffe;
-            border-color: #218ffe;
-        }
-        
-        .btn-primary:hover {
-            background-color: #0d6efd;
-            border-color: #0d6efd;
-        }
-        
-        .hero-card {
-            transition: transform 0.2s;
-            cursor: pointer;
-            height: 100%;
-        }
-        
-        .hero-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 5px 15px rgba(249, 158, 26, 0.8);
-        }
-        
-        .hero-icon {
-            width: 64px;
-            height: 64px;
-            border-radius: 8px;
-            border: 2px solid #fff;
-        }
-        
-        .tank-border {
-            border-color: #2980b9;
-        }
-        
-        .damage-border {
-            border-color: #c0392b;
-        }
-        
-        .support-border {
-            border-color: #27ae60;
-        }
-        
-        .unknown-border {
-            border-color: #777;
-        }
-        
-        .effectiveness {
-            width: 100%;
-            height: 6px;
-            background-color: #e74c3c;
-            border-radius: 3px;
-            margin-top: 5px;
-        }
-        
-        .effectiveness-fill {
-            height: 100%;
-            background-color: #2ecc71;
-            border-radius: 3px;
-        }
-        
-        .filter-btn {
-            margin-right: 5px;
-            margin-bottom: 5px;
-        }
-        
-        .filter-btn.active {
-            background-color: #f99e1a;
-            border-color: #f99e1a;
-        }
-        
-        .hero-name {
-            font-weight: bold;
-            margin-top: 5px;
-        }
-        
-        .result-header {
-            background: linear-gradient(135deg, #f99e1a, #218ffe);
-            color: #fff;
-            padding: 1.5rem;
-            border-top-left-radius: 8px;
-            border-top-right-radius: 8px;
-        }
-        
-        .result-body {
-            padding: 1.5rem;
-            background-color: rgba(0, 0, 0, 0.7);
-            color: #f0edf2;
-        }
-        
-        .hero-weakness {
-            background-color: rgba(231, 76, 60, 0.2);
-            border-left: 4px solid #e74c3c;
-            padding: 10px;
-            margin-bottom: 15px;
-        }
-        
-        .tip-card {
-            background-color: rgba(52, 152, 219, 0.1);
-            border-left: 4px solid #218ffe;
-            padding: 10px;
-            margin-bottom: 10px;
-        }
-        
-        .synergy-badge {
-            background-color: #8e44ad;
-            margin-right: 5px;
-            margin-bottom: 5px;
-        }
-        
-        .map-badge {
-            background-color: #16a085;
-            margin-right: 5px;
-            margin-bottom: 5px;
-        }
-        
-        .search-box {
-            background-color: rgba(255, 255, 255, 0.2);
-            border: 1px solid #f0edf2;
-            color: #f0edf2;
-        }
-        
-        .search-box::placeholder {
-            color: rgba(255, 255, 255, 0.7);
-        }
-        
-        .difficulty-meter {
-            margin-top: 8px;
-        }
-        
-        .difficulty-pip {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background-color: #444;
-            margin-right: 4px;
-        }
-        
-        .difficulty-pip.active {
-            background-color: #f99e1a;
-        }
-        
-        .difficulty-1 .difficulty-pip.active {
-            background-color: #27ae60;  /* Green for easy */
-        }
-        
-        .difficulty-2 .difficulty-pip.active {
-            background-color: #f39c12;  /* Orange for medium */
-        }
-        
-        .difficulty-3 .difficulty-pip.active {
-            background-color: #e74c3c;  /* Red for hard */
-        }
-        
-        .beginner-friendly-section {
-            background-color: rgba(39, 174, 96, 0.2);
-            border-left: 4px solid #27ae60;
-            padding: 10px;
-            margin-bottom: 15px;
-        }
-        
-        .difficulty-filter .btn {
-            margin-right: 5px;
-        }
-        
-        @media (max-width: 768px) {
-            .hero-card {
-                margin-bottom: 15px;
-            }
-        }
-    </style>
-</head>
-<body>
-    <nav class="navbar navbar-expand-lg navbar-dark mb-4">
-        <div class="container">
-            <a class="navbar-brand" href="{{ url_for('enemy_selection') }}">
-                <span style="color: #f99e1a; font-weight: bold;">OVERWATCH</span> 
-                <span style="color: #218ffe; font-weight: bold;">COUNTER</span>
-            </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('enemy_selection') }}">Home</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#aboutModal">About</a>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </nav>
-    
-    <div class="container py-3">
-        <div class="row justify-content-center">
-            <div class="col-md-10">
-                <div class="card shadow mb-4">
-                    <div class="result-header">
-                        <div class="d-flex align-items-center justify-content-between">
-                            <h2 class="mb-0">Counter Strategy</h2>
-                            <span class="badge bg-dark px-3 py-2">{{ user_role }} vs {{ enemy }}</span>
-                        </div>
-                    </div>
-                    <div class="result-body">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="hero-weakness mb-4">
-                                    <h4>Enemy Weaknesses</h4>
-                                    <p class="mb-0">{{ weaknesses }}</p>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="mb-4">
-                                    <h4>Hero Difficulty</h4>
-                                    <div class="difficulty-meter difficulty-{{ hero_difficulty.get(enemy, 2) }}">
-                                        <p class="mb-1">{{ enemy }} Difficulty: <strong>{{ difficulty_labels.get(hero_difficulty.get(enemy, 2)) }}</strong></p>
-                                        <div class="d-flex">
-                                            {% for i in range(1, 4) %}
-                                                {% if i <= hero_difficulty.get(enemy, 2) %}
-                                                    <div class="difficulty-pip active"></div>
-                                                {% else %}
-                                                    <div class="difficulty-pip"></div>
-                                                {% endif %}
-                                            {% endfor %}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <h4 class="mt-3 mb-4">Recommended Counter Heroes</h4>
-                
-                {% if beginner_friendly|length > 0 %}
-                <div class="beginner-friendly-section mb-4">
-                    <h5>Beginner-Friendly Recommendations</h5>
-                    <p class="mb-2">These heroes are both effective counters and easy to play:</p>
-                    <div class="d-flex flex-wrap">
-                        {% for hero in beginner_friendly %}
-                            <span class="badge bg-success me-2 mb-2 p-2">{{ hero }}</span>
-                        {% endfor %}
-                    </div>
-                </div>
-                {% endif %}
-                
-                <div class="difficulty-filter mb-4">
-                    <span>Filter by difficulty: </span>
-                    <div class="btn-group">
-                        <button class="btn btn-sm btn-outline-light filter-all active">All</button>
-                        <button class="btn btn-sm btn-outline-success filter-easy">Easy</button>
-                        <button class="btn btn-sm btn-outline-warning filter-medium">Medium</button>
-                        <button class="btn btn-sm btn-outline-danger filter-hard">Hard</button>
-                    </div>
-                </div>
-                        
-                        {% if counters_list|length == 0 %}
-                        <div class="alert alert-warning">
-                            No specific {{ user_role }} counters found for {{ enemy }}. Try another role or check the enemy weaknesses above.
-                        </div>
-                        {% else %}
-                        <div class="row">
-                            {% for counter in counters_list %}
-                    <div class="col-md-6 col-lg-4 mb-4 hero-counter-card difficulty-{{ difficulties[counter] }}">
-                        <div class="card hero-card h-100">
-                            <div class="card-body">
-                                <div class="d-flex align-items-center mb-3">
-                                    <img src="{{ hero_image_url(counter) }}" class="hero-icon {{ user_role.lower() }}-border me-3" alt="{{ counter }}">
-                                    <div>
-                                        <h5 class="mb-0">{{ counter }}</h5>
-                                        <div class="effectiveness">
-                                            <div class="effectiveness-fill" style="width: {{ effectiveness[counter] * 20 }}%"></div>
-                                        </div>
-                                        <small>Effectiveness: {{ effectiveness[counter] }}/5</small>
-                                    </div>
-                                </div>
-                                
-                                <div class="tip-card">
-                                    {{ hero_tips[counter] }}
-                                </div>
-                                
-                                <div class="difficulty-meter difficulty-{{ difficulties[counter] }}">
-                                    <small class="d-block mb-1">Difficulty: {{ difficulty_text[counter] }}</small>
-                                    <div class="d-flex">
-                                        {% for i in range(1, 4) %}
-                                            {% if i <= difficulties[counter] %}
-                                                <div class="difficulty-pip active"></div>
-                                            {% else %}
-                                                <div class="difficulty-pip"></div>
-                                            {% endif %}
-                                        {% endfor %}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    {% endfor %}
-                        </div>
-                        {% endif %}
-                        
-                        <div class="text-center mt-4">
-                            <a href="{{ url_for('select_class', enemy=enemy) }}" class="btn btn-secondary me-2">
-                                <i class="bi bi-arrow-left"></i> Different Role
-                            </a>
-                            <a href="{{ url_for('enemy_selection') }}" class="btn btn-primary">
-                                <i class="bi bi-arrow-repeat"></i> Start Over
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- About Modal -->
-    <div class="modal fade" id="aboutModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content bg-dark text-light">
-                <div class="modal-header">
-                    <h5 class="modal-title">About Overwatch Counter Picker</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <p>This tool helps Overwatch 2 players find effective counter picks against enemy heroes.</p>
-                    <p>Select an enemy hero that's giving you trouble, then choose your preferred role to see recommended counters with tactical tips.</p>
-                    <p>Data is based on general gameplay experience and may vary depending on skill level and gameplay style.</p>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        // Difficulty filter functionality
-        document.querySelectorAll('.difficulty-filter button')?.forEach(button => {
-            button.addEventListener('click', function() {
-                // Update active button
-                document.querySelectorAll('.difficulty-filter button').forEach(btn => 
-                    btn.classList.remove('active'));
-                this.classList.add('active');
-                
-                // Get the filter level
-                const filter = this.classList.contains('filter-all') ? 'all' : 
-                              this.classList.contains('filter-easy') ? '1' :
-                              this.classList.contains('filter-medium') ? '2' : '3';
-                
-                // Filter hero cards
-                document.querySelectorAll('.hero-counter-card').forEach(card => {
-                    if (filter === 'all' || card.classList.contains('difficulty-' + filter)) {
-                        card.style.display = '';
-                    } else {
-                        card.style.display = 'none';
-                    }
-                });
-            });
-        });
-    </script>
-</body>
-</html>
-'''
-
-# API route to get hero data in JSON format (for potential future frontend work)
-@app.route('/api/heroes', methods=['GET'])
-def get_heroes():
-    return jsonify(counterData)
-
-# API route to get counter recommendations for a specific enemy
-@app.route('/api/counters/<string:enemy>/<string:role>', methods=['GET'])
-def get_counters(enemy, role):
-    if enemy not in counterData:
-        return jsonify({"error": "Enemy hero not found"}), 404
-    if role not in ["Tank", "Damage", "Support"]:
-        return jsonify({"error": "Invalid role"}), 400
-    
-    counters = counterData[enemy][role]
-    return jsonify({
-        "enemy": enemy,
-        "role": role,
-        "counters": counters,
-        "weaknesses": counterData[enemy]["Weaknesses"]
-    })
+    # If file not found, add sample data for demonstration
+    # Sample data for testing without Excel file
+    counterData = {
+        "Widowmaker": {
+            "Role": "Damage",
+            "Tank": "Winston, D.Va, Wrecking Ball",
+            "Damage": "Genji, Tracer, Sombra",
+            "Support": "Kiriko",
+            "Weaknesses": "Dive heroes, shields, and close-range engagements"
+        },
+        "Mercy": {
+            "Role": "Support",
+            "Tank": "Winston, D.Va",
+            "Damage": "Sombra, Tracer, Widowmaker",
+            "Support": "Ana, Kiriko",
+            "Weaknesses": "Focus fire, anti-heal, and no escape route"
+        },
+        "Reinhardt": {
+            "Role": "Tank",
+            "Tank": "Orisa, Zarya",
+            "Damage": "Reaper, Junkrat, Pharah",
+            "Support": "Ana, Zenyatta",
+            "Weaknesses": "Crowd control, aerial heroes, and focused fire"
+        }
+    }
+    enemy_characters = list(counterData.keys())
+    # Update role lists
+    for hero, data in counterData.items():
+        role = data["Role"]
+        if role in heroes_by_role:
+            heroes_by_role[role].append(hero)
 
 # ------------------------------------------------------------------
 # FLASK ROUTES
@@ -1375,8 +387,16 @@ def get_counters(enemy, role):
 @app.route('/')
 def enemy_selection():
     hero_roles = {hero: counterData[hero]["Role"] for hero in enemy_characters}
-    return render_template_string(
-        step1_template, 
+    return render_template('index.html', 
+        enemies=enemy_characters, 
+        hero_roles=hero_roles,
+        hero_image_url=get_hero_image_url
+    )
+
+@app.route('/multi_enemy')
+def multi_enemy_selection():
+    hero_roles = {hero: counterData[hero]["Role"] for hero in enemy_characters}
+    return render_template('multi_enemy.html', 
         enemies=enemy_characters, 
         hero_roles=hero_roles,
         hero_image_url=get_hero_image_url
@@ -1387,10 +407,19 @@ def select_class():
     enemy = request.args.get('enemy')
     if enemy not in counterData:
         return "Invalid enemy hero selected!", 400
-    return render_template_string(
-        step2_template, 
-        enemy=enemy
-    )
+    return render_template('select_role.html', enemy=enemy)
+
+@app.route('/select_class_multi')
+def select_class_multi():
+    enemies = request.args.get('enemies', '').split(',')
+    if not enemies or enemies[0] == '':
+        return redirect(url_for('multi_enemy_selection'))
+    
+    # Store enemies in session for later use
+    session['selected_enemies'] = enemies
+    
+    return render_template('select_role_multi.html', enemies=enemies, 
+                          hero_image_url=get_hero_image_url)
 
 @app.route('/show_counters')
 def show_counters():
@@ -1425,8 +454,7 @@ def show_counters():
     # Find beginner-friendly recommendations (effective AND easy to play)
     beginner_friendly = [counter for counter in counters_list if effectiveness[counter] >= 4 and difficulties[counter] == 1]
 
-    return render_template_string(
-        step3_template,
+    return render_template('counters.html',
         enemy=enemy,
         user_role=user_role,
         counters_list=counters_list,
@@ -1440,6 +468,131 @@ def show_counters():
         difficulty_labels=difficulty_labels,
         hero_image_url=get_hero_image_url
     )
+
+@app.route('/show_multi_counters')
+def show_multi_counters():
+    enemies = session.get('selected_enemies', [])
+    user_role = request.args.get('role')
+    
+    if not enemies or user_role not in ["Tank", "Damage", "Support"]:
+        return redirect(url_for('multi_enemy_selection'))
+
+    # Get all heroes in the selected role
+    role_heroes = heroes_by_role[user_role]
+    
+    # Calculate effectiveness against the enemy team
+    counter_scores = {}
+    individual_scores = {}
+    
+    for hero in role_heroes:
+        counter_scores[hero] = 0
+        individual_scores[hero] = {}
+        
+        for enemy in enemies:
+            score = get_counter_difficulty(hero, enemy)
+            counter_scores[hero] += score
+            individual_scores[hero][enemy] = score
+            
+        # Average the score
+        if len(enemies) > 0:
+            counter_scores[hero] /= len(enemies)
+    
+    # Sort by effectiveness
+    sorted_counters = sorted(counter_scores.items(), key=lambda x: x[1], reverse=True)
+    top_counters = [hero for hero, score in sorted_counters[:5]]  # Top 5 counters
+    
+    # Get weaknesses for all enemies
+    all_weaknesses = {enemy: counterData.get(enemy, {}).get("Weaknesses", "") for enemy in enemies}
+    
+    # Get hero tips and difficulties
+    hero_tips = {counter: heroSummaries.get(counter, "No tips available") for counter in top_counters}
+    difficulties = {counter: hero_difficulty.get(counter, 2) for counter in top_counters}
+    difficulty_text = {counter: difficulty_labels.get(difficulties[counter], "Medium") for counter in top_counters}
+    
+    # Find beginner-friendly recommendations
+    beginner_friendly = [counter for counter in top_counters if counter_scores[counter] >= 3.5 and difficulties[counter] == 1]
+
+    return render_template('multi_counters.html',
+        enemies=enemies,
+        user_role=user_role,
+        counters_list=top_counters,
+        effectiveness=dict(sorted_counters),
+        individual_scores=individual_scores,
+        hero_tips=hero_tips,
+        difficulties=difficulties,
+        difficulty_text=difficulty_text,
+        beginner_friendly=beginner_friendly,
+        all_weaknesses=all_weaknesses,
+        hero_difficulty=hero_difficulty,
+        difficulty_labels=difficulty_labels,
+        hero_image_url=get_hero_image_url
+    )
+
+# API route to get hero data in JSON format (for potential future frontend work)
+@app.route('/api/heroes', methods=['GET'])
+def get_heroes():
+    return jsonify(counterData)
+
+# API route to get counter recommendations for a specific enemy
+@app.route('/api/counters/<string:enemy>/<string:role>', methods=['GET'])
+def get_counters(enemy, role):
+    if enemy not in counterData:
+        return jsonify({"error": "Enemy hero not found"}), 404
+    if role not in ["Tank", "Damage", "Support"]:
+        return jsonify({"error": "Invalid role"}), 400
+    
+    counters = counterData[enemy][role]
+    return jsonify({
+        "enemy": enemy,
+        "role": role,
+        "counters": counters,
+        "weaknesses": counterData[enemy]["Weaknesses"]
+    })
+
+# API route to get counter recommendations for multiple enemies
+@app.route('/api/multi_counters', methods=['POST'])
+def get_multi_counters():
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+        
+    enemies = data.get('enemies', [])
+    role = data.get('role', '')
+    
+    if not enemies:
+        return jsonify({"error": "No enemies specified"}), 400
+    if role not in ["Tank", "Damage", "Support"]:
+        return jsonify({"error": "Invalid role"}), 400
+    
+    # Get all heroes in the selected role
+    role_heroes = heroes_by_role[role]
+    
+    # Calculate effectiveness against the enemy team
+    counter_scores = {}
+    for hero in role_heroes:
+        counter_scores[hero] = 0
+        for enemy in enemies:
+            if enemy in counterData:  # Make sure the enemy exists in our data
+                counter_scores[hero] += get_counter_difficulty(hero, enemy)
+        
+        # Average the score
+        if len(enemies) > 0:
+            counter_scores[hero] /= len(enemies)
+    
+    # Sort by effectiveness
+    sorted_counters = sorted(counter_scores.items(), key=lambda x: x[1], reverse=True)
+    top_counters = sorted_counters[:5]  # Top 5 counters
+    
+    # Get weaknesses for all enemies
+    all_weaknesses = {enemy: counterData.get(enemy, {}).get("Weaknesses", "") 
+                     for enemy in enemies if enemy in counterData}
+    
+    return jsonify({
+        "enemies": enemies,
+        "role": role,
+        "counters": dict(top_counters),
+        "all_weaknesses": all_weaknesses
+    })
 
 if __name__ == '__main__':
     app.run(debug=True)
