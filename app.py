@@ -1,6 +1,7 @@
 import os
 import pandas as pd
 from flask import Flask, request, render_template_string, redirect, url_for, jsonify
+from sample_data import generate_sample_data  # Import the sample data function
 
 # Initialize Flask app with static file handling
 app = Flask(__name__, static_url_path='/static', static_folder='static')
@@ -12,53 +13,61 @@ def load_counter_data():
     """
     excel_file = 'Overwatch Counters.xlsx'
 
-    if not os.path.exists(excel_file):
-        raise FileNotFoundError(f"Excel file '{excel_file}' not found. Please create it with the columns: Role, Hero, Tank-Counter, Damage-Counter, Support-Counter, Weaknesses:")
+    try:
+        if not os.path.exists(excel_file):
+            print(f"Warning: Excel file '{excel_file}' not found. Using empty data.")
+            return {}, [], {"Tank": [], "Damage": [], "Support": [], "Unknown": []}
 
-    df = pd.read_excel(excel_file)
-    df.columns = df.columns.str.strip()
-    
-    required_cols = ["Role", "Hero", "Tank-Counter", "Damage-Counter", "Support-Counter", "Weaknesses:"]
-    for col in required_cols:
-        if col not in df.columns:
-            raise ValueError(f"Column '{col}' not found in Excel. Expected columns: {required_cols}")
+        df = pd.read_excel(excel_file)
+        df.columns = df.columns.str.strip()
+        
+        required_cols = ["Role", "Hero", "Tank-Counter", "Damage-Counter", "Support-Counter", "Weaknesses:"]
+        missing_cols = [col for col in required_cols if col not in df.columns]
+        if missing_cols:
+            print(f"Warning: Columns {missing_cols} not found in Excel. Using empty data.")
+            return {}, [], {"Tank": [], "Damage": [], "Support": [], "Unknown": []}
 
-    counterData = {}
-    for _, row in df.iterrows():
-        hero_name = str(row["Hero"]).strip()
-        if hero_name.lower() == 'nan' or not hero_name:
-            continue  # Skip empty entries
-            
-        counterData[hero_name] = {
-            "Role": row["Role"] if not pd.isna(row["Role"]) else "Unknown",
-            "Tank": str(row["Tank-Counter"]) if not pd.isna(row["Tank-Counter"]) else "",
-            "Damage": str(row["Damage-Counter"]) if not pd.isna(row["Damage-Counter"]) else "",
-            "Support": str(row["Support-Counter"]) if not pd.isna(row["Support-Counter"]) else "",
-            "Weaknesses": str(row["Weaknesses:"]) if not pd.isna(row["Weaknesses:"]) else ""
+        counterData = {}
+        for _, row in df.iterrows():
+            hero_name = str(row["Hero"]).strip()
+            if hero_name.lower() == 'nan' or not hero_name:
+                continue  # Skip empty entries
+                
+            counterData[hero_name] = {
+                "Role": row["Role"] if not pd.isna(row["Role"]) else "Unknown",
+                "Tank": str(row["Tank-Counter"]) if not pd.isna(row["Tank-Counter"]) else "",
+                "Damage": str(row["Damage-Counter"]) if not pd.isna(row["Damage-Counter"]) else "",
+                "Support": str(row["Support-Counter"]) if not pd.isna(row["Support-Counter"]) else "",
+                "Weaknesses": str(row["Weaknesses:"]) if not pd.isna(row["Weaknesses:"]) else ""
+            }
+
+        # Group heroes by role for filtering
+        heroes_by_role = {
+            "Tank": [],
+            "Damage": [],
+            "Support": [],
+            "Unknown": []  # Add a category for heroes with unknown roles
         }
-
-    # Group heroes by role for filtering
-    heroes_by_role = {
-        "Tank": [],
-        "Damage": [],
-        "Support": [],
-        "Unknown": []  # Add a category for heroes with unknown roles
-    }
+        
+        for hero, data in counterData.items():
+            # Check if the role is valid before adding to the role list
+            role = data["Role"]
+            if pd.isna(role) or role == "" or role not in heroes_by_role:
+                heroes_by_role["Unknown"].append(hero)
+            else:
+                heroes_by_role[role].append(hero)
+        
+        for role in heroes_by_role:
+            heroes_by_role[role] = sorted(heroes_by_role[role])
+        
+        # Filter out any "nan" entries that might come from empty cells
+        enemy_characters = [hero for hero in sorted(counterData.keys()) if hero.lower() != "nan"]
+        return counterData, enemy_characters, heroes_by_role
     
-    for hero, data in counterData.items():
-        # Check if the role is valid before adding to the role list
-        role = data["Role"]
-        if pd.isna(role) or role == "" or role not in heroes_by_role:
-            heroes_by_role["Unknown"].append(hero)
-        else:
-            heroes_by_role[role].append(hero)
-    
-    for role in heroes_by_role:
-        heroes_by_role[role] = sorted(heroes_by_role[role])
-    
-    # Filter out any "nan" entries that might come from empty cells
-    enemy_characters = [hero for hero in sorted(counterData.keys()) if hero.lower() != "nan"]
-    return counterData, enemy_characters, heroes_by_role
+    except Exception as e:
+        print(f"Error loading Excel data: {e}")
+        # Return empty data on error
+        return {}, [], {"Tank": [], "Damage": [], "Support": [], "Unknown": []}
 
 # Normalization function to ensure hero names match our heroSummaries keys
 def normalize_hero_name(name):
@@ -322,16 +331,6 @@ heroSummaries = {
     "Zenyatta": "Apply Orb of Discord to amplify damage on targets and dish consistent DPS with Orb of Destruction. Provide clutch Transcendence when needed."
 }
 
-# Load the counter data
-try:
-    counterData, enemy_characters, heroes_by_role = load_counter_data()
-except FileNotFoundError as e:
-    print(f"Error: {e}")
-    print("Please create the Excel file with the required columns.")
-    counterData = {}
-    enemy_characters = []
-    heroes_by_role = {"Tank": [], "Damage": [], "Support": [], "Unknown": []}
-
 # ------------------------------------------------------------------
 # TEMPLATES
 # ------------------------------------------------------------------
@@ -557,9 +556,16 @@ step1_template = '''
     <div class="container py-3">
         {% if enemies|length == 0 %}
         <div class="alert alert-danger text-center">
-            <h4>Error: Excel file not found or data missing</h4>
-            <p>Please make sure 'Overwatch Counters.xlsx' exists in the application folder with the following columns:</p>
-            <p><code>Role, Hero, Tank-Counter, Damage-Counter, Support-Counter, Weaknesses:</code></p>
+            <h4>Excel file not found or data missing</h4>
+            <p>Please upload the 'Overwatch Counters.xlsx' file to continue.</p>
+            
+            <div class="mt-4">
+                <h5>Data Status</h5>
+                <ul class="list-group">
+                    <li class="list-group-item bg-dark text-light">Excel File: {{ 'Found' if excel_exists else 'Missing' }}</li>
+                    <li class="list-group-item bg-dark text-light">Heroes loaded: {{ enemy_count }}</li>
+                </ul>
+            </div>
         </div>
         {% else %}
         <div class="row justify-content-center">
