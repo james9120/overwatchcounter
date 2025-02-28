@@ -1,14 +1,9 @@
 import os
 import pandas as pd
-from flask import Flask, request, render_template_string, redirect, url_for, jsonify
+from flask import Flask, request, render_template, redirect, url_for, jsonify
 
 # Initialize Flask app with static file handling
 app = Flask(__name__, static_url_path='/static', static_folder='static')
-
-# Global variables for data
-counterData = {}
-enemy_characters = []
-heroes_by_role = {"Tank": [], "Damage": [], "Support": [], "Unknown": []}
 
 # Sample data to use when the Excel file is not available
 SAMPLE_COUNTER_DATA = {
@@ -349,10 +344,7 @@ difficulty_labels = {
     3: "Hard"
 }
 
-# ------------------------------------------------------------------
-# HERO SUMMARIES: Tactical tips for each recommended counter hero.
-# All keys now use consistent naming.
-# ------------------------------------------------------------------
+# Hero summaries: Tactical tips for each recommended counter hero
 heroSummaries = {
     "D.Va": "Use Defense Matrix for critical projectiles and ultimates. Dive with Boosters and follow up with Micro Missiles for burst damage. Time Self-Destruct for area denial, and watch out for beam heroes.",
     "Doomfist": "Engage with melee combos and use Power Block to absorb damage. Time your Charge to secure kills, but avoid heavy crowd-control.",
@@ -396,208 +388,135 @@ heroSummaries = {
     "Zenyatta": "Apply Orb of Discord to amplify damage on targets and dish consistent DPS with Orb of Destruction. Provide clutch Transcendence when needed."
 }
 
-# ------------------------------------------------------------------
-# TEMPLATES
-# ------------------------------------------------------------------
+# Load the data during startup
+global counterData, enemy_characters, heroes_by_role
 
-# Step 1: Select Enemy Hero 
-step1_template = '''
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Overwatch 2 Counter Picker</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css">
-    <style>
-        body {
-            background-color: #405275;
-            color: #f0edf2;
-            font-family: 'Futura', sans-serif;
-        }
-        
-        .navbar {
-            background-color: rgba(0, 0, 0, 0.8);
-        }
-        
-        .card {
-            background-color: rgba(0, 0, 0, 0.6);
-            border: 2px solid #f99e1a;
-            border-radius: 10px;
-            box-shadow: 0 0 15px rgba(249, 158, 26, 0.5);
-        }
-        
-        .btn-primary {
-            background-color: #218ffe;
-            border-color: #218ffe;
-        }
-        
-        .btn-primary:hover {
-            background-color: #0d6efd;
-            border-color: #0d6efd;
-        }
-        
-        .hero-card {
-            transition: transform 0.2s;
-            cursor: pointer;
-            height: 100%;
-        }
-        
-        .hero-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 5px 15px rgba(249, 158, 26, 0.8);
-        }
-        
-        .hero-icon {
-            width: 64px;
-            height: 64px;
-            border-radius: 8px;
-            border: 2px solid #fff;
-        }
-        
-        .tank-border {
-            border-color: #2980b9;
-        }
-        
-        .damage-border {
-            border-color: #c0392b;
-        }
-        
-        .support-border {
-            border-color: #27ae60;
-        }
-        
-        .unknown-border {
-            border-color: #777;
-        }
-        
-        .effectiveness {
-            width: 100%;
-            height: 6px;
-            background-color: #e74c3c;
-            border-radius: 3px;
-            margin-top: 5px;
-        }
-        
-        .effectiveness-fill {
-            height: 100%;
-            background-color: #2ecc71;
-            border-radius: 3px;
-        }
-        
-        .filter-btn {
-            margin-right: 5px;
-            margin-bottom: 5px;
-        }
-        
-        .filter-btn.active {
-            background-color: #f99e1a;
-            border-color: #f99e1a;
-        }
-        
-        .hero-name {
-            font-weight: bold;
-            margin-top: 5px;
-        }
-        
-        .result-header {
-            background: linear-gradient(135deg, #f99e1a, #218ffe);
-            color: #fff;
-            padding: 1.5rem;
-            border-top-left-radius: 8px;
-            border-top-right-radius: 8px;
-        }
-        
-        .result-body {
-            padding: 1.5rem;
-            background-color: rgba(0, 0, 0, 0.7);
-            color: #f0edf2;
-        }
-        
-        .hero-weakness {
-            background-color: rgba(231, 76, 60, 0.2);
-            border-left: 4px solid #e74c3c;
-            padding: 10px;
-            margin-bottom: 15px;
-        }
-        
-        .tip-card {
-            background-color: rgba(52, 152, 219, 0.1);
-            border-left: 4px solid #218ffe;
-            padding: 10px;
-            margin-bottom: 10px;
-        }
-        
-        .synergy-badge {
-            background-color: #8e44ad;
-            margin-right: 5px;
-            margin-bottom: 5px;
-        }
-        
-        .map-badge {
-            background-color: #16a085;
-            margin-right: 5px;
-            margin-bottom: 5px;
-        }
-        
-        .search-box {
-            background-color: rgba(255, 255, 255, 0.2);
-            border: 1px solid #f0edf2;
-            color: #f0edf2;
-        }
-        
-        .search-box::placeholder {
-            color: rgba(255, 255, 255, 0.7);
-        }
-        
-        .difficulty-meter {
-            margin-top: 8px;
-        }
-        
-        .difficulty-pip {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background-color: #444;
-            margin-right: 4px;
-        }
-        
-        .difficulty-pip.active {
-            background-color: #f99e1a;
-        }
-        
-        .difficulty-1 .difficulty-pip.active {
-            background-color: #27ae60;  /* Green for easy */
-        }
-        
-        .difficulty-2 .difficulty-pip.active {
-            background-color: #f39c12;  /* Orange for medium */
-        }
-        
-        .difficulty-3 .difficulty-pip.active {
-            background-color: #e74c3c;  /* Red for hard */
-        }
-        
-        .beginner-friendly-section {
-            background-color: rgba(39, 174, 96, 0.2);
-            border-left: 4px solid #27ae60;
-            padding: 10px;
-            margin-bottom: 15px;
-        }
-        
-        .difficulty-filter .btn {
-            margin-right: 5px;
-        }
-        
-        @media (max-width: 768px) {
-            .hero-card {
-                margin-bottom: 15px;
-            }
-        }
-    </style>
-</head>
-<body>
-    <nav class="navbar navbar-expand-lg navbar-dark mb-4">
-        <div class="container">
-            <a class="navbar-brand" href="{{ url_for('enemy_selection') }}">
-                <span style="color: #f99e1a; font-weight: bold;">OVERWATCH</span> 
-                <span style="color: #218ffe;
+# Try to load data from Excel first, fall back to sample data if that fails
+try:
+    excel_exists = os.path.exists('Overwatch Counters.xlsx')
+    print(f"Excel file exists: {excel_exists}")
+    
+    if excel_exists:
+        counterData, enemy_characters, heroes_by_role = load_counter_data()
+        print(f"Loaded {len(enemy_characters)} heroes from Excel data")
+    else:
+        # Use sample data as fallback
+        print("Excel file not found, using sample data instead")
+        counterData, enemy_characters, heroes_by_role = generate_sample_data()
+        print(f"Loaded {len(enemy_characters)} sample heroes")
+except Exception as e:
+    print(f"Error loading data: {e}")
+    # Ensure we always have some data
+    counterData, enemy_characters, heroes_by_role = generate_sample_data()
+    print("Falling back to sample data due to error")
+
+# ------------------------------------------------------------------
+# FLASK ROUTES
+# ------------------------------------------------------------------
+@app.route('/')
+def enemy_selection():
+    # Create a dictionary mapping heroes to their roles
+    hero_roles = {hero: counterData.get(hero, {}).get("Role", "Unknown") for hero in enemy_characters}
+    
+    return render_template('index.html', 
+                          enemies=enemy_characters, 
+                          hero_roles=hero_roles,
+                          excel_exists=excel_exists,
+                          enemy_count=len(enemy_characters))
+
+@app.route('/select_class')
+def select_class():
+    enemy = request.args.get('enemy')
+    if enemy not in counterData:
+        return "Invalid enemy hero selected!", 400
+    return render_template('select_role.html', enemy=enemy)
+
+@app.route('/show_counters')
+def show_counters():
+    enemy = request.args.get('enemy')
+    user_role = request.args.get('role')
+    
+    if enemy not in counterData:
+        return "Invalid enemy hero!", 400
+    if user_role not in ["Tank", "Damage", "Support"]:
+        return "Invalid role selected!", 400
+
+    # Get recommended counter heroes and weaknesses from the data
+    counters_for_role = counterData[enemy][user_role]
+    weaknesses = counterData[enemy]["Weaknesses"]
+
+    # Parse and normalize all recommended counter heroes (assumed comma-separated)
+    counters_list = [normalize_hero_name(counter.strip()) for counter in counters_for_role.split(",") if counter.strip()]
+    counters_list = [c for c in counters_list if c]  # Remove empty strings (from strategy terms like "Brawl", "Dive")
+    
+    # Get effectiveness ratings for each counter
+    effectiveness = {counter: get_counter_difficulty(counter, enemy) for counter in counters_list}
+    
+    # Get hero tips
+    hero_tips = {counter: heroSummaries.get(counter, "No additional tips available for " + counter) for counter in counters_list}
+    
+    # Get hero difficulty ratings
+    difficulties = {counter: hero_difficulty.get(counter, 2) for counter in counters_list}  # Default to medium if not found
+    difficulty_text = {counter: difficulty_labels.get(difficulties[counter], "Medium") for counter in counters_list}
+    
+    # Find beginner-friendly recommendations (effective AND easy to play)
+    beginner_friendly = [counter for counter in counters_list if effectiveness[counter] >= 4 and difficulties[counter] == 1]
+
+    return render_template('counters.html',
+                          enemy=enemy,
+                          user_role=user_role,
+                          counters_list=counters_list,
+                          weaknesses=weaknesses,
+                          effectiveness=effectiveness,
+                          hero_tips=hero_tips,
+                          difficulties=difficulties,
+                          difficulty_text=difficulty_text,
+                          beginner_friendly=beginner_friendly,
+                          hero_difficulty=hero_difficulty,
+                          difficulty_labels=difficulty_labels)
+
+# Helper function for templates to get hero image URLs
+@app.context_processor
+def utility_processor():
+    return dict(hero_image_url=get_hero_image_url)
+
+@app.route('/status')
+def app_status():
+    import sys
+    status_info = {
+        "app_running": True,
+        "excel_exists": os.path.exists('Overwatch Counters.xlsx'),
+        "heroes_loaded": len(enemy_characters),
+        "python_version": sys.version,
+        "working_directory": os.getcwd(),
+        "directory_contents": os.listdir(".")
+    }
+    return jsonify(status_info)
+
+# API route to get hero data in JSON format (for potential future frontend work)
+@app.route('/api/heroes', methods=['GET'])
+def get_heroes():
+    return jsonify(counterData)
+
+# API route to get counter recommendations for a specific enemy
+@app.route('/api/counters/<string:enemy>/<string:role>', methods=['GET'])
+def get_counters(enemy, role):
+    if enemy not in counterData:
+        return jsonify({"error": "Enemy hero not found"}), 404
+    if role not in ["Tank", "Damage", "Support"]:
+        return jsonify({"error": "Invalid role"}), 400
+    
+    counters = counterData[enemy][role]
+    return jsonify({
+        "enemy": enemy,
+        "role": role,
+        "counters": counters,
+        "weaknesses": counterData[enemy]["Weaknesses"]
+    })
+
+if __name__ == '__main__':
+    # Get port from environment variable or default to 5000
+    port = int(os.environ.get('PORT', 5000))
+    
+    # Run the app with production settings
+    app.run(host='0.0.0.0', port=port)
