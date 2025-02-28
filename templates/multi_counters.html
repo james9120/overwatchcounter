@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+
+{% block title %}Multi-Enemy Counters - Overwatch 2{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-10">
+        <div class="card shadow mb-4">
+            <div class="result-header">
+                <div class="d-flex align-items-center justify-content-between">
+                    <h2 class="mb-0">Team Counter Strategy</h2>
+                    <span class="badge bg-dark px-3 py-2">{{ user_role }} Counter Picks</span>
+                </div>
+            </div>
+            <div class="result-body">
+                <!-- Enemy team composition -->
+                <div class="mb-4">
+                    <h4 class="text-light">Enemy Team Composition</h4>
+                    <div class="d-flex flex-wrap">
+                        {% for enemy in enemies %}
+                        <div class="mx-2 mb-3 text-center">
+                            <img src="{{ hero_image_url(enemy) }}" alt="{{ enemy }}" class="hero-icon">
+                            <div class="hero-name mt-1">{{ enemy }}</div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                
+                <!-- Enemy team weaknesses -->
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <h4 class="text-light">Enemy Weaknesses Analysis</h4>
+                        <div class="accordion" id="weaknessAccordion">
+                            {% for enemy, weakness in all_weaknesses.items() %}
+                            <div class="accordion-item bg-transparent">
+                                <h2 class="accordion-header" id="heading{{ loop.index }}">
+                                    <button class="accordion-button bg-dark text-light collapsed" type="button" data-bs-toggle="collapse" 
+                                            data-bs-target="#collapse{{ loop.index }}" aria-expanded="false" 
+                                            aria-controls="collapse{{ loop.index }}">
+                                        <img src="{{ hero_image_url(enemy) }}" alt="{{ enemy }}" class="hero-icon-small me-2">
+                                        {{ enemy }} Weaknesses
+                                    </button>
+                                </h2>
+                                <div id="collapse{{ loop.index }}" class="accordion-collapse collapse" 
+                                     aria-labelledby="heading{{ loop.index }}" data-bs-parent="#weaknessAccordion">
+                                    <div class="accordion-body hero-weakness">
+                                        {{ weakness|default('No specific weaknesses documented.') }}
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Beginner-friendly recommendations -->
+                {% if beginner_friendly|length > 0 %}
+                <div class="beginner-friendly-section mb-4">
+                    <h5>Beginner-Friendly Recommendations</h5>
+                    <p class="mb-2">These heroes are both effective counters and easy to play:</p>
+                    <div class="d-flex flex-wrap">
+                        {% for hero in beginner_friendly %}
+                            <span class="badge bg-success me-2 mb-2 p-2">{{ hero }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                
+                <!-- Difficulty filter -->
+                <div class="difficulty-filter mb-4">
+                    <span>Filter by difficulty: </span>
+                    <div class="btn-group">
+                        <button class="btn btn-sm btn-outline-light filter-all active">All</button>
+                        <button class="btn btn-sm btn-outline-success filter-easy">Easy</button>
+                        <button class="btn btn-sm btn-outline-warning filter-medium">Medium</button>
+                        <button class="btn btn-sm btn-outline-danger filter-hard">Hard</button>
+                    </div>
+                </div>
+                
+                <!-- Top counter recommendations -->
+                <h4 class="mb-3 text-light">Top Recommended {{ user_role }} Counters</h4>
+                
+                {% if counters_list|length == 0 %}
+                <div class="alert alert-warning">
+                    No specific {{ user_role }} counters found. Try another role or check the enemy weaknesses above.
+                </div>
+                {% else %}
+                <div class="row">
+                    {% for counter in counters_list %}
+                    <div class="col-md-6 col-lg-4 mb-4 hero-counter-card difficulty-{{ difficulties[counter] }}">
+                        <div class="card hero-card h-100">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center mb-3">
+                                    <img src="{{ hero_image_url(counter) }}" class="hero-icon {{ user_role.lower() }}-border me-3" alt="{{ counter }}">
+                                    <div>
+                                        <h5 class="mb-0">{{ counter }}</h5>
+                                        <div class="effectiveness">
+                                            <div class="effectiveness-fill" style="width: {{ effectiveness[counter] * 20 }}%"></div>
+                                        </div>
+                                        <small>Overall Effectiveness: {{ effectiveness[counter]|round|int }}/5</small>
+                                    </div>
+                                </div>
+                                
+                                <!-- Individual matchup effectiveness -->
+                                <div class="matchup-ratings mb-3">
+                                    <h6>Individual Matchups:</h6>
+                                    <div class="row">
+                                        {% for enemy in enemies %}
+                                        <div class="col-12 mb-1">
+                                            <div class="d-flex align-items-center">
+                                                <img src="{{ hero_image_url(enemy) }}" class="hero-icon-xsmall me-2" alt="{{ enemy }}">
+                                                <div class="flex-grow-1">
+                                                    <div class="effectiveness">
+                                                        <div class="effectiveness-fill" style="width: {{ individual_scores[counter][enemy] * 20 }}%"></div>
+                                                    </div>
+                                                </div>
+                                                <span class="ms-2 small">{{ individual_scores[counter][enemy] }}/5</span>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                
+                                <div class="tip-card">
+                                    {{ hero_tips[counter] }}
+                                </div>
+                                
+                                <div class="difficulty-meter difficulty-{{ difficulties[counter] }}">
+                                    <small class="d-block mb-1">Difficulty: {{ difficulty_text[counter] }}</small>
+                                    <div class="d-flex">
+                                        {% for i in range(1, 4) %}
+                                            {% if i <= difficulties[counter] %}
+                                                <div class="difficulty-pip active"></div>
+                                            {% else %}
+                                                <div class="difficulty-pip"></div>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                
+                <!-- Action buttons -->
+                <div class="text-center mt-4">
+                    <a href="{{ url_for('select_class_multi') }}" class="btn btn-secondary me-2">
+                        <i class="bi bi-arrow-left"></i> Different Role
+                    </a>
+                    <a href="{{ url_for('multi_enemy_selection') }}" class="btn btn-primary">
+                        <i class="bi bi-arrow-repeat"></i> Select Different Enemies
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Difficulty filter functionality
+    document.querySelectorAll('.difficulty-filter button')?.forEach(button => {
+        button.addEventListener('click', function() {
+            // Update active button
+            document.querySelectorAll('.difficulty-filter button').forEach(btn => 
+                btn.classList.remove('active'));
+            this.classList.add('active');
+            
+            // Get the filter level
+            const filter = this.classList.contains('filter-all') ? 'all' : 
+                          this.classList.contains('filter-easy') ? '1' :
+                          this.classList.contains('filter-medium') ? '2' : '3';
+            
+            // Filter hero cards
+            document.querySelectorAll('.hero-counter-card').forEach(card => {
+                if (filter === 'all' || card.classList.contains('difficulty-' + filter)) {
+                    card.style.display = '';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        });
+    });
+</script>
+
+<style>
+    .hero-icon-small {
+        width: 30px;
+        height: 30px;
+        border-radius: 4px;
+    }
+    
+    .hero-icon-xsmall {
+        width: 20px;
+        height: 20px;
+        border-radius: 3px;
+    }
+    
+    .accordion-button:not(.collapsed) {
+        background-color: #218ffe !important;
+        color: white !important;
+    }
+    
+    .accordion-item {
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        margin-bottom: 5px;
+    }
+    
+    .matchup-ratings {
+        background-color: rgba(0, 0, 0, 0.2);
+        border-radius: 5px;
+        padding: 10px;
+    }
+    
+    .accordion-button {
+        color: white;
+        background-color: rgba(0, 0, 0, 0.6);
+    }
+    
+    .accordion-button:hover {
+        background-color: rgba(0, 0, 0, 0.8);
+    }
+    
+    .hero-weakness {
+        color: white;
+        background-color: rgba(231, 76, 60, 0.2);
+    }
+</style>
+{% endblock %}

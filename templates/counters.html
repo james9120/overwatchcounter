@@ -1,55 +1,150 @@
 {% extends "base.html" %}
 
-{% block title %}Choose Your Role - Overwatch 2 Counter Picker{% endblock %}
+{% block title %}Overwatch 2 Counter Recommendations{% endblock %}
 
 {% block content %}
 <div class="row justify-content-center">
-    <div class="col-md-8 col-lg-6">
+    <div class="col-md-10">
         <div class="card shadow mb-4">
-            <div class="card-header bg-transparent border-0">
-                <h2 class="text-center mb-0" style="color: #f99e1a;">Choose Your Role</h2>
-                <p class="text-center mt-2 mb-0">Counter-picking: <strong>{{ enemy }}</strong></p>
+            <div class="result-header">
+                <div class="d-flex align-items-center justify-content-between">
+                    <h2 class="mb-0">Counter Strategy</h2>
+                    <span class="badge bg-dark px-3 py-2">{{ user_role }} vs {{ enemy }}</span>
+                </div>
             </div>
-            <div class="card-body">
+            <div class="result-body">
                 <div class="row">
-                    <div class="col-md-4 mb-3">
-                        <a href="{{ url_for('show_counters', enemy=enemy, role='Tank') }}" class="text-decoration-none">
-                            <div class="card hero-card" style="border-color: #2980b9;">
-                                <div class="card-body text-center">
-                                    <h3 style="color: #2980b9;">Tank</h3>
-                                    <p class="mb-0">High HP frontline heroes that create space</p>
-                                </div>
-                            </div>
-                        </a>
+                    <div class="col-md-6">
+                        <div class="hero-weakness mb-4">
+                            <h4>Enemy Weaknesses</h4>
+                            <p class="mb-0">{{ weaknesses }}</p>
+                        </div>
                     </div>
-                    <div class="col-md-4 mb-3">
-                        <a href="{{ url_for('show_counters', enemy=enemy, role='Damage') }}" class="text-decoration-none">
-                            <div class="card hero-card" style="border-color: #c0392b;">
-                                <div class="card-body text-center">
-                                    <h3 style="color: #c0392b;">Damage</h3>
-                                    <p class="mb-0">High damage output heroes that secure eliminations</p>
+                    <div class="col-md-6">
+                        <div class="mb-4">
+                            <h4>Hero Difficulty</h4>
+                            <div class="difficulty-meter difficulty-{{ hero_difficulty.get(enemy, 2) }}">
+                                <p class="mb-1">{{ enemy }} Difficulty: <strong>{{ difficulty_labels.get(hero_difficulty.get(enemy, 2)) }}</strong></p>
+                                <div class="d-flex">
+                                    {% for i in range(1, 4) %}
+                                        {% if i <= hero_difficulty.get(enemy, 2) %}
+                                            <div class="difficulty-pip active"></div>
+                                        {% else %}
+                                            <div class="difficulty-pip"></div>
+                                        {% endif %}
+                                    {% endfor %}
                                 </div>
                             </div>
-                        </a>
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <a href="{{ url_for('show_counters', enemy=enemy, role='Support') }}" class="text-decoration-none">
-                            <div class="card hero-card" style="border-color: #27ae60;">
-                                <div class="card-body text-center">
-                                    <h3 style="color: #27ae60;">Support</h3>
-                                    <p class="mb-0">Healing heroes that keep the team alive</p>
-                                </div>
-                            </div>
-                        </a>
+                        </div>
                     </div>
                 </div>
-                <div class="text-center mt-3">
-                    <a href="{{ url_for('enemy_selection') }}" class="btn btn-secondary">
-                        <i class="bi bi-arrow-left"></i> Select Different Enemy
+                
+                <h4 class="mt-3 mb-4">Recommended Counter Heroes</h4>
+                
+                {% if beginner_friendly|length > 0 %}
+                <div class="beginner-friendly-section mb-4">
+                    <h5>Beginner-Friendly Recommendations</h5>
+                    <p class="mb-2">These heroes are both effective counters and easy to play:</p>
+                    <div class="d-flex flex-wrap">
+                        {% for hero in beginner_friendly %}
+                            <span class="badge bg-success me-2 mb-2 p-2">{{ hero }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                
+                <div class="difficulty-filter mb-4">
+                    <span>Filter by difficulty: </span>
+                    <div class="btn-group">
+                        <button class="btn btn-sm btn-outline-light filter-all active">All</button>
+                        <button class="btn btn-sm btn-outline-success filter-easy">Easy</button>
+                        <button class="btn btn-sm btn-outline-warning filter-medium">Medium</button>
+                        <button class="btn btn-sm btn-outline-danger filter-hard">Hard</button>
+                    </div>
+                </div>
+                
+                {% if counters_list|length == 0 %}
+                <div class="alert alert-warning">
+                    No specific {{ user_role }} counters found for {{ enemy }}. Try another role or check the enemy weaknesses above.
+                </div>
+                {% else %}
+                <div class="row">
+                    {% for counter in counters_list %}
+                    <div class="col-md-6 col-lg-4 mb-4 hero-counter-card difficulty-{{ difficulties[counter] }}">
+                        <div class="card hero-card h-100">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center mb-3">
+                                    <img src="{{ hero_image_url(counter) }}" class="hero-icon {{ user_role.lower() }}-border me-3" alt="{{ counter }}">
+                                    <div>
+                                        <h5 class="mb-0">{{ counter }}</h5>
+                                        <div class="effectiveness">
+                                            <div class="effectiveness-fill" style="width: {{ effectiveness[counter] * 20 }}%"></div>
+                                        </div>
+                                        <small>Effectiveness: {{ effectiveness[counter]|round|int }}/5</small>
+                                    </div>
+                                </div>
+                                
+                                <div class="tip-card">
+                                    {{ hero_tips[counter] }}
+                                </div>
+                                
+                                <div class="difficulty-meter difficulty-{{ difficulties[counter] }}">
+                                    <small class="d-block mb-1">Difficulty: {{ difficulty_text[counter] }}</small>
+                                    <div class="d-flex">
+                                        {% for i in range(1, 4) %}
+                                            {% if i <= difficulties[counter] %}
+                                                <div class="difficulty-pip active"></div>
+                                            {% else %}
+                                                <div class="difficulty-pip"></div>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                
+                <div class="text-center mt-4">
+                    <a href="{{ url_for('select_class', enemy=enemy) }}" class="btn btn-secondary me-2">
+                        <i class="bi bi-arrow-left"></i> Different Role
+                    </a>
+                    <a href="{{ url_for('enemy_selection') }}" class="btn btn-primary">
+                        <i class="bi bi-arrow-repeat"></i> Start Over
                     </a>
                 </div>
             </div>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Difficulty filter functionality
+    document.querySelectorAll('.difficulty-filter button')?.forEach(button => {
+        button.addEventListener('click', function() {
+            // Update active button
+            document.querySelectorAll('.difficulty-filter button').forEach(btn => 
+                btn.classList.remove('active'));
+            this.classList.add('active');
+            
+            // Get the filter level
+            const filter = this.classList.contains('filter-all') ? 'all' : 
+                          this.classList.contains('filter-easy') ? '1' :
+                          this.classList.contains('filter-medium') ? '2' : '3';
+            
+            // Filter hero cards
+            document.querySelectorAll('.hero-counter-card').forEach(card => {
+                if (filter === 'all' || card.classList.contains('difficulty-' + filter)) {
+                    card.style.display = '';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        });
+    });
+</script>
 {% endblock %}

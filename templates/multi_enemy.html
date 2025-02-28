@@ -1,0 +1,261 @@
+{% extends "base.html" %}
+
+{% block title %}Multi-Enemy Counter Picker - Overwatch 2{% endblock %}
+
+{% block content %}
+    {% if enemies|length == 0 %}
+    <div class="alert alert-danger text-center">
+        <h4>Error: Excel file not found or data missing</h4>
+        <p>Please make sure 'Overwatch Counters.xlsx' exists in the application folder with the required columns.</p>
+    </div>
+    {% else %}
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+            <div class="card shadow mb-4">
+                <div class="card-header bg-transparent border-0">
+                    <h2 class="text-center mb-0" style="color: #f99e1a;">Select Multiple Enemies</h2>
+                    <p class="text-center mt-2 mb-0">Pick up to 5 enemy heroes to counter</p>
+                </div>
+                <div class="card-body">
+                    <div class="mb-4">
+                        <input type="text" id="heroSearch" class="form-control search-box" placeholder="Search for heroes...">
+                    </div>
+                    
+                    <div class="d-flex flex-wrap mb-3">
+                        <button class="btn btn-sm btn-outline-light filter-btn active" data-role="all">All</button>
+                        <button class="btn btn-sm btn-outline-primary filter-btn" data-role="Tank">Tanks</button>
+                        <button class="btn btn-sm btn-outline-danger filter-btn" data-role="Damage">Damage</button>
+                        <button class="btn btn-sm btn-outline-success filter-btn" data-role="Support">Support</button>
+                    </div>
+                    
+                    <!-- Selected heroes section -->
+                    <div class="selected-heroes-container mb-4" style="min-height: 80px;">
+                        <h5>Selected Enemies: <span id="selected-count">0</span>/5</h5>
+                        <div class="d-flex flex-wrap" id="selected-heroes-display">
+                            <!-- Selected heroes will appear here -->
+                        </div>
+                    </div>
+                    
+                    <div class="row" id="heroGrid">
+                        {% for hero in enemies %}
+                        <div class="col-6 col-sm-4 col-md-3 col-lg-2 mb-3 hero-item" data-role="{{ hero_roles[hero] }}">
+                            <div class="hero-card card text-center p-2" id="hero-card-{{ hero|replace(' ', '-')|replace(':', '')|replace('.', '') }}" onclick="toggleHeroSelection('{{ hero }}')">
+                                <img src="{{ hero_image_url(hero) }}" alt="{{ hero }}" class="hero-icon mx-auto {{ hero_roles[hero].lower() }}-border">
+                                <div class="hero-name text-light">{{ hero }}</div>
+                                <div class="hero-selected-indicator" style="display: none;">
+                                    <span class="badge bg-success">Selected</span>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    
+                    <form id="enemy-form" action="{{ url_for('select_class_multi') }}" method="get" class="mt-4 text-center">
+                        <input type="hidden" id="selected-enemies" name="enemies" value="">
+                        <button id="find-counters-btn" class="btn btn-primary btn-lg" disabled>Find Counters</button>
+                        <button type="button" id="clear-selection-btn" class="btn btn-secondary btn-lg" disabled>Clear Selection</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Track selected enemies
+    const selectedEnemies = new Set();
+    const maxSelections = 5;
+    
+    // Toggle hero selection
+    function toggleHeroSelection(heroName) {
+        const heroId = heroName.replace(/[ :\.]/g, '-');
+        const card = document.getElementById('hero-card-' + heroId);
+        const indicator = card.querySelector('.hero-selected-indicator');
+        
+        if (selectedEnemies.has(heroName)) {
+            // Deselect
+            selectedEnemies.delete(heroName);
+            card.classList.remove('selected-hero');
+            indicator.style.display = 'none';
+            removeFromSelectedDisplay(heroName);
+        } else {
+            // Select if under maximum
+            if (selectedEnemies.size < maxSelections) {
+                selectedEnemies.add(heroName);
+                card.classList.add('selected-hero');
+                indicator.style.display = 'block';
+                addToSelectedDisplay(heroName);
+            }
+        }
+        
+        // Update UI
+        updateCounterButtonState();
+    }
+    
+    // Add hero to the selected display area
+    function addToSelectedDisplay(heroName) {
+        const displayArea = document.getElementById('selected-heroes-display');
+        const heroId = heroName.replace(/[ :\.]/g, '-');
+        
+        const heroElement = document.createElement('div');
+        heroElement.className = 'selected-hero-display m-1';
+        heroElement.id = 'selected-display-' + heroId;
+        
+        // Get hero role for border color
+        const heroItem = document.querySelector(`.hero-item div[id="hero-card-${heroId}"]`);
+        const heroImg = heroItem.querySelector('img').cloneNode(true);
+        heroImg.className = 'hero-icon-small mx-auto ' + heroImg.className.split(' ').filter(c => c.includes('-border'))[0];
+        
+        const heroTitle = document.createElement('div');
+        heroTitle.className = 'small mt-1';
+        heroTitle.textContent = heroName;
+        
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'btn btn-sm btn-danger remove-hero-btn';
+        removeBtn.innerHTML = '&times;';
+        removeBtn.onclick = function() {
+            toggleHeroSelection(heroName);
+        };
+        
+        heroElement.appendChild(heroImg);
+        heroElement.appendChild(heroTitle);
+        heroElement.appendChild(removeBtn);
+        displayArea.appendChild(heroElement);
+        
+        // Update count
+        document.getElementById('selected-count').textContent = selectedEnemies.size;
+    }
+    
+    // Remove hero from selected display
+    function removeFromSelectedDisplay(heroName) {
+        const heroId = heroName.replace(/[ :\.]/g, '-');
+        const element = document.getElementById('selected-display-' + heroId);
+        if (element) {
+            element.remove();
+        }
+        
+        // Update count
+        document.getElementById('selected-count').textContent = selectedEnemies.size;
+    }
+    
+    // Enable/disable "Find Counters" button based on selections
+    function updateCounterButtonState() {
+        const counterButton = document.getElementById('find-counters-btn');
+        const clearButton = document.getElementById('clear-selection-btn');
+        const hasSelections = selectedEnemies.size > 0;
+        
+        counterButton.disabled = !hasSelections;
+        clearButton.disabled = !hasSelections;
+    }
+    
+    // Clear all selections
+    document.getElementById('clear-selection-btn').addEventListener('click', function() {
+        // Deselect all heroes
+        selectedEnemies.forEach(hero => {
+            toggleHeroSelection(hero);
+        });
+        
+        // Clear the selected heroes display
+        document.getElementById('selected-heroes-display').innerHTML = '';
+        document.getElementById('selected-count').textContent = '0';
+        
+        // Manually empty the set in case toggleHeroSelection missed anything
+        selectedEnemies.clear();
+        
+        // Update buttons
+        updateCounterButtonState();
+    });
+    
+    // Update hidden form field before submission
+    document.getElementById('enemy-form').addEventListener('submit', function(e) {
+        document.getElementById('selected-enemies').value = 
+            Array.from(selectedEnemies).join(',');
+            
+        // Prevent submission if no heroes selected
+        if (selectedEnemies.size === 0) {
+            e.preventDefault();
+            alert('Please select at least one enemy hero.');
+        }
+    });
+    
+    // Hero search functionality
+    document.getElementById('heroSearch')?.addEventListener('input', function() {
+        const searchTerm = this.value.toLowerCase();
+        const heroes = document.querySelectorAll('.hero-item');
+        
+        heroes.forEach(hero => {
+            const heroName = hero.querySelector('.hero-name').textContent.toLowerCase();
+            if (heroName.includes(searchTerm)) {
+                hero.style.display = '';
+            } else {
+                hero.style.display = 'none';
+            }
+        });
+    });
+    
+    // Role filter functionality
+    document.querySelectorAll('.filter-btn')?.forEach(button => {
+        button.addEventListener('click', function() {
+            // Update active button
+            document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+            this.classList.add('active');
+            
+            const role = this.getAttribute('data-role');
+            const heroes = document.querySelectorAll('.hero-item');
+            
+            heroes.forEach(hero => {
+                if (role === 'all' || hero.getAttribute('data-role') === role) {
+                    hero.style.display = '';
+                } else {
+                    hero.style.display = 'none';
+                }
+            });
+        });
+    });
+</script>
+
+<style>
+    .hero-icon-small {
+        width: 40px;
+        height: 40px;
+        border-radius: 5px;
+        border-width: 2px;
+    }
+    
+    .selected-hero {
+        border-color: #2ecc71 !important;
+        box-shadow: 0 0 10px rgba(46, 204, 113, 0.7) !important;
+        transform: translateY(-3px);
+    }
+    
+    .selected-hero-display {
+        position: relative;
+        background: rgba(0, 0, 0, 0.4);
+        border-radius: 5px;
+        padding: 5px;
+        text-align: center;
+        width: 60px;
+    }
+    
+    .remove-hero-btn {
+        position: absolute;
+        top: -5px;
+        right: -5px;
+        width: 20px;
+        height: 20px;
+        padding: 0;
+        font-size: 10px;
+        line-height: 1;
+        border-radius: 50%;
+    }
+    
+    .selected-heroes-container {
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 5px;
+        padding: 10px;
+        margin-bottom: 15px;
+    }
+</style>
+{% endblock %}

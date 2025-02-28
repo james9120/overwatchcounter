@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}Choose Your Role - Multiple Enemy Counter{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <div class="card shadow mb-4">
+            <div class="card-header bg-transparent border-0">
+                <h2 class="text-center mb-0" style="color: #f99e1a;">Choose Your Role</h2>
+                <p class="text-center mt-2 mb-0">Counter-picking multiple enemies:</p>
+            </div>
+            <div class="card-body">
+                <!-- Display selected enemy heroes -->
+                <div class="selected-enemies-display mb-4">
+                    <div class="d-flex flex-wrap justify-content-center">
+                        {% for enemy in enemies %}
+                        <div class="mx-2 mb-2 text-center">
+                            <img src="{{ hero_image_url(enemy) }}" alt="{{ enemy }}" class="hero-icon">
+                            <div class="small mt-1">{{ enemy }}</div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <a href="{{ url_for('show_multi_counters', role='Tank') }}" class="text-decoration-none">
+                            <div class="card hero-card" style="border-color: #2980b9;">
+                                <div class="card-body text-center">
+                                    <h3 style="color: #2980b9;">Tank</h3>
+                                    <p class="mb-0">High HP frontline heroes that create space</p>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <a href="{{ url_for('show_multi_counters', role='Damage') }}" class="text-decoration-none">
+                            <div class="card hero-card" style="border-color: #c0392b;">
+                                <div class="card-body text-center">
+                                    <h3 style="color: #c0392b;">Damage</h3>
+                                    <p class="mb-0">High damage output heroes that secure eliminations</p>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <a href="{{ url_for('show_multi_counters', role='Support') }}" class="text-decoration-none">
+                            <div class="card hero-card" style="border-color: #27ae60;">
+                                <div class="card-body text-center">
+                                    <h3 style="color: #27ae60;">Support</h3>
+                                    <p class="mb-0">Healing heroes that keep the team alive</p>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+                <div class="text-center mt-3">
+                    <a href="{{ url_for('multi_enemy_selection') }}" class="btn btn-secondary">
+                        <i class="bi bi-arrow-left"></i> Select Different Enemies
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

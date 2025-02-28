@@ -3,18 +3,20 @@
 {% block title %}Overwatch 2 Counter Picker{% endblock %}
 
 {% block content %}
-    {% if enemies|length == 0 %}
+    {% if not enemies or enemies|length == 0 %}
     <div class="alert alert-danger text-center">
-        <h4>Excel file not found or data missing</h4>
-        <p>Using sample data instead. To use your custom data, please upload the 'Overwatch Counters.xlsx' file.</p>
+        <h4>Error: Excel file not found or data missing</h4>
+        <p>Please make sure 'Overwatch Counters.xlsx' exists in the application folder with the required columns.</p>
     </div>
-    {% endif %}
-    
+    {% else %}
     <div class="row justify-content-center">
         <div class="col-md-8 col-lg-6">
             <div class="card shadow mb-4">
                 <div class="card-header bg-transparent border-0">
                     <h2 class="text-center mb-0" style="color: #f99e1a;">Who's Giving You Trouble?</h2>
+                    <p class="text-center text-light mt-2">
+                        Looking for team counters? <a href="{{ url_for('multi_enemy_selection') }}" class="text-warning">Try Multi-Enemy Counter →</a>
+                    </p>
                 </div>
                 <div class="card-body">
                     <div class="mb-4">
@@ -46,6 +48,7 @@
             </div>
         </div>
     </div>
+    {% endif %}
 {% endblock %}
 
 {% block scripts %}

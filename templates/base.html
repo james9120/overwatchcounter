@@ -189,3 +189,79 @@
                 margin-bottom: 15px;
             }
         }
+        
+        /* Multi-enemy selection styles */
+        .selected-hero {
+            border-color: #2ecc71 !important;
+            box-shadow: 0 0 10px rgba(46, 204, 113, 0.7) !important;
+        }
+        
+        .hero-selected-indicator {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+        }
+        
+        .nav-dropdown-item.active {
+            background-color: #f99e1a;
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="{{ url_for('enemy_selection') }}">
+                <span style="color: #f99e1a; font-weight: bold;">OVERWATCH</span> 
+                <span style="color: #218ffe; font-weight: bold;">COUNTER</span>
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('enemy_selection') }}">Single Counter</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('multi_enemy_selection') }}">Team Counter</a>
+                    </li>
+                </ul>
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#aboutModal">About</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+    
+    <div class="container py-3">
+        {% block content %}{% endblock %}
+    </div>
+    
+    <!-- About Modal -->
+    <div class="modal fade" id="aboutModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content bg-dark text-light">
+                <div class="modal-header">
+                    <h5 class="modal-title">About Overwatch Counter Picker</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>This tool helps Overwatch 2 players find effective counter picks against enemy heroes.</p>
+                    <p>Select an enemy hero that's giving you trouble, then choose your preferred role to see recommended counters with tactical tips.</p>
+                    <p><strong>New Feature:</strong> Now you can select multiple enemy heroes and find the best counters for the entire enemy team!</p>
+                    <p>Data is based on general gameplay experience and may vary depending on skill level and gameplay style.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,88 +1,55 @@
 {% extends "base.html" %}
 
-{% block title %}Overwatch 2 Counter Picker{% endblock %}
+{% block title %}Choose Your Role - Overwatch 2 Counter Picker{% endblock %}
 
 {% block content %}
-    {% if enemies|length == 0 %}
-    <div class="alert alert-danger text-center">
-        <h4>Excel file not found or data missing</h4>
-        <p>Using sample data instead. To use your custom data, please upload the 'Overwatch Counters.xlsx' file.</p>
-    </div>
-    {% endif %}
-    
-    <div class="row justify-content-center">
-        <div class="col-md-8 col-lg-6">
-            <div class="card shadow mb-4">
-                <div class="card-header bg-transparent border-0">
-                    <h2 class="text-center mb-0" style="color: #f99e1a;">Who's Giving You Trouble?</h2>
-                </div>
-                <div class="card-body">
-                    <div class="mb-4">
-                        <input type="text" id="heroSearch" class="form-control search-box" placeholder="Search for a hero...">
-                    </div>
-                    
-                    <div class="mb-3">
-                        <div class="d-flex flex-wrap">
-                            <button class="btn btn-sm btn-outline-light filter-btn active" data-role="all">All</button>
-                            <button class="btn btn-sm btn-outline-primary filter-btn" data-role="Tank">Tanks</button>
-                            <button class="btn btn-sm btn-outline-danger filter-btn" data-role="Damage">Damage</button>
-                            <button class="btn btn-sm btn-outline-success filter-btn" data-role="Support">Support</button>
-                        </div>
-                    </div>
-                    
-                    <div class="row" id="heroGrid">
-                        {% for hero in enemies %}
-                        <div class="col-4 col-sm-3 mb-3 hero-item" data-role="{{ hero_roles[hero] }}">
-                            <a href="{{ url_for('select_class', enemy=hero) }}" class="text-decoration-none">
-                                <div class="hero-card card text-center p-2">
-                                    <img src="{{ hero_image_url(hero) }}" alt="{{ hero }}" class="hero-icon mx-auto {{ hero_roles[hero].lower() }}-border">
-                                    <div class="hero-name text-light">{{ hero }}</div>
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <div class="card shadow mb-4">
+            <div class="card-header bg-transparent border-0">
+                <h2 class="text-center mb-0" style="color: #f99e1a;">Choose Your Role</h2>
+                <p class="text-center mt-2 mb-0">Counter-picking: <strong>{{ enemy }}</strong></p>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <a href="{{ url_for('show_counters', enemy=enemy, role='Tank') }}" class="text-decoration-none">
+                            <div class="card hero-card" style="border-color: #2980b9;">
+                                <div class="card-body text-center">
+                                    <h3 style="color: #2980b9;">Tank</h3>
+                                    <p class="mb-0">High HP frontline heroes that create space</p>
                                 </div>
-                            </a>
-                        </div>
-                        {% endfor %}
+                            </div>
+                        </a>
                     </div>
+                    <div class="col-md-4 mb-3">
+                        <a href="{{ url_for('show_counters', enemy=enemy, role='Damage') }}" class="text-decoration-none">
+                            <div class="card hero-card" style="border-color: #c0392b;">
+                                <div class="card-body text-center">
+                                    <h3 style="color: #c0392b;">Damage</h3>
+                                    <p class="mb-0">High damage output heroes that secure eliminations</p>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <a href="{{ url_for('show_counters', enemy=enemy, role='Support') }}" class="text-decoration-none">
+                            <div class="card hero-card" style="border-color: #27ae60;">
+                                <div class="card-body text-center">
+                                    <h3 style="color: #27ae60;">Support</h3>
+                                    <p class="mb-0">Healing heroes that keep the team alive</p>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+                <div class="text-center mt-3">
+                    <a href="{{ url_for('enemy_selection') }}" class="btn btn-secondary">
+                        <i class="bi bi-arrow-left"></i> Select Different Enemy
+                    </a>
                 </div>
             </div>
         </div>
     </div>
-{% endblock %}
-
-{% block scripts %}
-<script>
-    // Hero search functionality
-    document.getElementById('heroSearch')?.addEventListener('input', function() {
-        const searchTerm = this.value.toLowerCase();
-        const heroes = document.querySelectorAll('.hero-item');
-        
-        heroes.forEach(hero => {
-            const heroName = hero.querySelector('.hero-name').textContent.toLowerCase();
-            if (heroName.includes(searchTerm)) {
-                hero.style.display = '';
-            } else {
-                hero.style.display = 'none';
-            }
-        });
-    });
-    
-    // Role filter functionality
-    document.querySelectorAll('.filter-btn')?.forEach(button => {
-        button.addEventListener('click', function() {
-            // Update active button
-            document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
-            this.classList.add('active');
-            
-            const role = this.getAttribute('data-role');
-            const heroes = document.querySelectorAll('.hero-item');
-            
-            heroes.forEach(hero => {
-                if (role === 'all' || hero.getAttribute('data-role') === role) {
-                    hero.style.display = '';
-                } else {
-                    hero.style.display = 'none';
-                }
-            });
-        });
-    });
-</script>
+</div>
 {% endblock %}
