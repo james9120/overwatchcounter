@@ -2,6 +2,20 @@
 
 A web app that helps Overwatch 2 players find effective counter picks against enemy heroes.
 
+## Features
+
+### Single Hero Counter
+- Select an individual enemy hero that's giving you trouble
+- Choose your preferred role (Tank, Damage, or Support)
+- Get recommended counter picks with effectiveness ratings and tactical tips
+- Filter heroes by difficulty level for beginner-friendly options
+
+### NEW: Team Counter Analysis
+- Select multiple enemy heroes (up to 5) to analyze an entire enemy team composition
+- Find the most effective counter heroes for your selected role against the full team
+- View individual matchup ratings for each recommended counter against each enemy
+- See detailed weaknesses for all selected enemy heroes
+
 ## Deployment Instructions
 
 ### Prerequisites
@@ -51,6 +65,7 @@ Make sure your deployment includes:
 - `requirements.txt` - Dependencies
 - `Procfile` - Instructions for the web server
 - `static/` - Folder containing your hero images
+- `templates/` - HTML templates
 - `Overwatch Counters.xlsx` - Data file
 
 ### Static Files
@@ -74,3 +89,16 @@ If you encounter errors during deployment:
 2. Verify that your Excel file is correctly uploaded
 3. Ensure all hero images are in the correct folders with proper naming
 4. Check that the Procfile is in the root directory of your project
+
+## About the Multi-Enemy Counter Feature
+
+The new team counter analysis feature calculates the most effective heroes against multiple enemy heroes by:
+
+1. Evaluating how well each potential counter performs against every selected enemy
+2. Calculating an average effectiveness score across all matchups
+3. Determining which counters provide the most value against the entire enemy team
+
+This is especially useful for:
+- Countering enemy team compositions in competitive play
+- Finding heroes that counter multiple enemies at once
+- Adapting your hero selection when facing coordinated team strategies
