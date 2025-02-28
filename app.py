@@ -1,10 +1,53 @@
 import os
 import pandas as pd
 from flask import Flask, request, render_template_string, redirect, url_for, jsonify
-from sample_data import generate_sample_data  # Import the sample data function
 
 # Initialize Flask app with static file handling
 app = Flask(__name__, static_url_path='/static', static_folder='static')
+
+# Global variables for data
+counterData = {}
+enemy_characters = []
+heroes_by_role = {"Tank": [], "Damage": [], "Support": [], "Unknown": []}
+
+# Sample data to use when the Excel file is not available
+SAMPLE_COUNTER_DATA = {
+    "D.Va": {
+        "Role": "Tank",
+        "Tank": "Zarya, Sigma",
+        "Damage": "Symmetra, Sombra, Mei",
+        "Support": "",
+        "Weaknesses": "Weak against beam weapons that bypass Defense Matrix. Loses mech easily to focused fire."
+    },
+    "Genji": {
+        "Role": "Damage",
+        "Tank": "Winston, Zarya",
+        "Damage": "Mei, Symmetra, Torbjörn",
+        "Support": "Moira, Brigitte",
+        "Weaknesses": "Struggles against auto-aim and beam abilities that can't be deflected. Vulnerable when Deflect is on cooldown."
+    },
+    "Mercy": {
+        "Role": "Support",
+        "Tank": "D.Va, Winston",
+        "Damage": "Widowmaker, Tracer, Sombra",
+        "Support": "",
+        "Weaknesses": "Relies on teammates for positioning. Vulnerable while using Resurrect. Can be isolated by flankers."
+    },
+    "Reinhardt": {
+        "Role": "Tank",
+        "Tank": "Sigma, Orisa",
+        "Damage": "Pharah, Echo, Junkrat",
+        "Support": "",
+        "Weaknesses": "Limited range. Vulnerable to aerial threats and spam damage. Shield can be broken quickly."
+    },
+    "Widowmaker": {
+        "Role": "Damage",
+        "Tank": "Winston, D.Va, Wrecking Ball",
+        "Damage": "Genji, Tracer, Sombra",
+        "Support": "",
+        "Weaknesses": "Weak at close range. Vulnerable to dive tanks and flankers. Struggles against barriers and shields."
+    }
+}
 
 def load_counter_data():
     """
@@ -15,8 +58,8 @@ def load_counter_data():
 
     try:
         if not os.path.exists(excel_file):
-            print(f"Warning: Excel file '{excel_file}' not found. Using empty data.")
-            return {}, [], {"Tank": [], "Damage": [], "Support": [], "Unknown": []}
+            print(f"Warning: Excel file '{excel_file}' not found. Using sample data.")
+            return generate_sample_data()
 
         df = pd.read_excel(excel_file)
         df.columns = df.columns.str.strip()
@@ -24,16 +67,16 @@ def load_counter_data():
         required_cols = ["Role", "Hero", "Tank-Counter", "Damage-Counter", "Support-Counter", "Weaknesses:"]
         missing_cols = [col for col in required_cols if col not in df.columns]
         if missing_cols:
-            print(f"Warning: Columns {missing_cols} not found in Excel. Using empty data.")
-            return {}, [], {"Tank": [], "Damage": [], "Support": [], "Unknown": []}
+            print(f"Warning: Columns {missing_cols} not found in Excel. Using sample data.")
+            return generate_sample_data()
 
-        counterData = {}
+        data = {}
         for _, row in df.iterrows():
             hero_name = str(row["Hero"]).strip()
             if hero_name.lower() == 'nan' or not hero_name:
                 continue  # Skip empty entries
                 
-            counterData[hero_name] = {
+            data[hero_name] = {
                 "Role": row["Role"] if not pd.isna(row["Role"]) else "Unknown",
                 "Tank": str(row["Tank-Counter"]) if not pd.isna(row["Tank-Counter"]) else "",
                 "Damage": str(row["Damage-Counter"]) if not pd.isna(row["Damage-Counter"]) else "",
@@ -42,32 +85,54 @@ def load_counter_data():
             }
 
         # Group heroes by role for filtering
-        heroes_by_role = {
+        roles = {
             "Tank": [],
             "Damage": [],
             "Support": [],
             "Unknown": []  # Add a category for heroes with unknown roles
         }
         
-        for hero, data in counterData.items():
+        for hero, hero_data in data.items():
             # Check if the role is valid before adding to the role list
-            role = data["Role"]
-            if pd.isna(role) or role == "" or role not in heroes_by_role:
-                heroes_by_role["Unknown"].append(hero)
+            role = hero_data["Role"]
+            if pd.isna(role) or role == "" or role not in roles:
+                roles["Unknown"].append(hero)
             else:
-                heroes_by_role[role].append(hero)
+                roles[role].append(hero)
         
-        for role in heroes_by_role:
-            heroes_by_role[role] = sorted(heroes_by_role[role])
+        for role in roles:
+            roles[role] = sorted(roles[role])
         
         # Filter out any "nan" entries that might come from empty cells
-        enemy_characters = [hero for hero in sorted(counterData.keys()) if hero.lower() != "nan"]
-        return counterData, enemy_characters, heroes_by_role
+        characters = [hero for hero in sorted(data.keys()) if hero.lower() != "nan"]
+        return data, characters, roles
     
     except Exception as e:
         print(f"Error loading Excel data: {e}")
-        # Return empty data on error
-        return {}, [], {"Tank": [], "Damage": [], "Support": [], "Unknown": []}
+        # Return sample data on error
+        return generate_sample_data()
+
+def generate_sample_data():
+    """Generate sample data when the Excel file is unavailable"""
+    data = SAMPLE_COUNTER_DATA
+    characters = list(data.keys())
+    
+    roles = {
+        "Tank": [],
+        "Damage": [],
+        "Support": [],
+        "Unknown": []
+    }
+    
+    for hero, hero_data in data.items():
+        role = hero_data["Role"]
+        if role in roles:
+            roles[role].append(hero)
+    
+    for role in roles:
+        roles[role] = sorted(roles[role])
+    
+    return data, characters, roles
 
 # Normalization function to ensure hero names match our heroSummaries keys
 def normalize_hero_name(name):
@@ -535,137 +600,4 @@ step1_template = '''
         <div class="container">
             <a class="navbar-brand" href="{{ url_for('enemy_selection') }}">
                 <span style="color: #f99e1a; font-weight: bold;">OVERWATCH</span> 
-                <span style="color: #218ffe; font-weight: bold;">COUNTER</span>
-            </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('enemy_selection') }}">Home</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#aboutModal">About</a>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </nav>
-    
-    <div class="container py-3">
-        {% if enemies|length == 0 %}
-        <div class="alert alert-danger text-center">
-            <h4>Excel file not found or data missing</h4>
-            <p>Please upload the 'Overwatch Counters.xlsx' file to continue.</p>
-            
-            <div class="mt-4">
-                <h5>Data Status</h5>
-                <ul class="list-group">
-                    <li class="list-group-item bg-dark text-light">Excel File: {{ 'Found' if excel_exists else 'Missing' }}</li>
-                    <li class="list-group-item bg-dark text-light">Heroes loaded: {{ enemy_count }}</li>
-                </ul>
-            </div>
-        </div>
-        {% else %}
-        <div class="row justify-content-center">
-            <div class="col-md-8 col-lg-6">
-                <div class="card shadow mb-4">
-                    <div class="card-header bg-transparent border-0">
-                        <h2 class="text-center mb-0" style="color: #f99e1a;">Who's Giving You Trouble?</h2>
-                    </div>
-                    <div class="card-body">
-                        <div class="mb-4">
-                            <input type="text" id="heroSearch" class="form-control search-box" placeholder="Search for a hero...">
-                        </div>
-                        
-                        <div class="mb-3">
-                            <div class="d-flex flex-wrap">
-                                <button class="btn btn-sm btn-outline-light filter-btn active" data-role="all">All</button>
-                                <button class="btn btn-sm btn-outline-primary filter-btn" data-role="Tank">Tanks</button>
-                                <button class="btn btn-sm btn-outline-danger filter-btn" data-role="Damage">Damage</button>
-                                <button class="btn btn-sm btn-outline-success filter-btn" data-role="Support">Support</button>
-                            </div>
-                        </div>
-                        
-                        <div class="row" id="heroGrid">
-                            {% for hero in enemies %}
-                            <div class="col-4 col-sm-3 mb-3 hero-item" data-role="{{ hero_roles[hero] }}">
-                                <a href="{{ url_for('select_class', enemy=hero) }}" class="text-decoration-none">
-                                    <div class="hero-card card text-center p-2">
-                                        <img src="{{ hero_image_url(hero) }}" alt="{{ hero }}" class="hero-icon mx-auto {{ hero_roles[hero].lower() }}-border">
-                                        <div class="hero-name text-light">{{ hero }}</div>
-                                    </div>
-                                </a>
-                            </div>
-                            {% endfor %}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        {% endif %}
-    </div>
-    
-    <!-- About Modal -->
-    <div class="modal fade" id="aboutModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content bg-dark text-light">
-                <div class="modal-header">
-                    <h5 class="modal-title">About Overwatch Counter Picker</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <p>This tool helps Overwatch 2 players find effective counter picks against enemy heroes.</p>
-                    <p>Select an enemy hero that's giving you trouble, then choose your preferred role to see recommended counters with tactical tips.</p>
-                    <p>Data is based on general gameplay experience and may vary depending on skill level and gameplay style.</p>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        // Hero search functionality
-        document.getElementById('heroSearch')?.addEventListener('input', function() {
-            const searchTerm = this.value.toLowerCase();
-            const heroes = document.querySelectorAll('.hero-item');
-            
-            heroes.forEach(hero => {
-                const heroName = hero.querySelector('.hero-name').textContent.toLowerCase();
-                if (heroName.includes(searchTerm)) {
-                    hero.style.display = '';
-                } else {
-                    hero.style.display = 'none';
-                }
-            });
-        });
-        
-        // Role filter functionality
-        document.querySelectorAll('.filter-btn')?.forEach(button => {
-            button.addEventListener('click', function() {
-                // Update active button
-                document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
-                this.classList.add('active');
-                
-                const role = this.getAttribute('data-role');
-                const heroes = document.querySelectorAll('.hero-item');
-                
-                heroes.forEach(hero => {
-                    if (role === 'all' || hero.getAttribute('data-role') === role) {
-                        hero.style.display = '';
-                    } else {
-                        hero.style.display = 'none';
-                    }
-                });
-            });
-        });
-    </script>
-</body>
-</html>
-'''
-
-# Step 2: Select Role
+                <span style="color: #218ffe;
