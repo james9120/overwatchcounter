@@ -71,14 +71,22 @@
                 <div class="row">
                     {% for counter in counters_list %}
                     <div class="col-md-6 col-lg-4 mb-4 hero-counter-card difficulty-{{ difficulties[counter] }}">
-                        <div class="card hero-card h-100">
+                        <div class="card hero-card h-100 counter-card">
                             <div class="card-body">
                                 <div class="d-flex align-items-center mb-3">
-                                    <img src="{{ hero_image_url(counter) }}" class="hero-icon {{ user_role.lower() }}-border me-3" alt="{{ counter }}">
+                                    <div class="hero-img-wrapper me-3">
+                                        <img src="{{ hero_image_url(counter) }}" class="hero-icon {{ user_role.lower() }}-border" alt="{{ counter }}">
+                                    </div>
                                     <div>
                                         <h5 class="mb-0">{{ counter }}</h5>
-                                        <div class="effectiveness">
-                                            <div class="effectiveness-fill" style="width: {{ effectiveness[counter] * 20 }}%"></div>
+                                        <div class="effectiveness-container">
+                                            <div class="effectiveness">
+                                                <div class="effectiveness-fill" style="width: {{ effectiveness[counter] * 20 }}%"></div>
+                                                <div class="effectiveness-highlight"></div>
+                                            </div>
+                                            <div class="effectiveness-rating">
+                                                <span class="effectiveness-value">{{ effectiveness[counter]|round|int }}</span>/5
+                                            </div>
                                         </div>
                                         <small>Effectiveness: {{ effectiveness[counter]|round|int }}/5</small>
                                     </div>
@@ -86,6 +94,24 @@
                                 
                                 <div class="tip-card">
                                     {{ hero_tips[counter] }}
+                                </div>
+                                
+                                <div class="matchup-details">
+                                    <div class="matchup-icon">
+                                        <div class="vs-text">VS</div>
+                                        <img src="{{ hero_image_url(enemy) }}" class="enemy-icon" alt="{{ enemy }}">
+                                    </div>
+                                    <div class="matchup-text">
+                                        <p>{{ counter }} counters {{ enemy }} with 
+                                        {% if effectiveness[counter] >= 4.5 %}
+                                            <strong class="text-success">exceptional effectiveness</strong>
+                                        {% elif effectiveness[counter] >= 3.5 %}
+                                            <strong class="text-info">good effectiveness</strong>
+                                        {% else %}
+                                            <strong class="text-warning">moderate effectiveness</strong>
+                                        {% endif %}
+                                        .</p>
+                                    </div>
                                 </div>
                                 
                                 <div class="difficulty-meter difficulty-{{ difficulties[counter] }}">
@@ -122,6 +148,215 @@
 {% endblock %}
 
 {% block scripts %}
+<style>
+    /* Enhanced counter cards */
+    .counter-card {
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .counter-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 25px rgba(249, 158, 26, 0.6);
+    }
+    
+    /* Fixed hero image container with glow */
+    .hero-img-wrapper {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .hero-img-wrapper::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        border-radius: 8px;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        pointer-events: none;
+    }
+    
+    .counter-card:hover .hero-img-wrapper::after {
+        opacity: 1;
+        animation: pulseGlow 2s infinite;
+    }
+    
+    /* Role-specific glows */
+    .hero-img-wrapper .tank-border ~ ::after {
+        box-shadow: 0 0 15px 5px rgba(41, 128, 185, 0.7);
+    }
+    
+    .hero-img-wrapper .damage-border ~ ::after {
+        box-shadow: 0 0 15px 5px rgba(192, 57, 43, 0.7);
+    }
+    
+    .hero-img-wrapper .support-border ~ ::after {
+        box-shadow: 0 0 15px 5px rgba(39, 174, 96, 0.7);
+    }
+    
+    /* Alternative glow approach */
+    .counter-card:hover .tank-border {
+        box-shadow: 0 0 15px 5px rgba(41, 128, 185, 0.7);
+        animation: pulseGlow 2s infinite;
+    }
+    
+    .counter-card:hover .damage-border {
+        box-shadow: 0 0 15px 5px rgba(192, 57, 43, 0.7);
+        animation: pulseGlow 2s infinite;
+    }
+    
+    .counter-card:hover .support-border {
+        box-shadow: 0 0 15px 5px rgba(39, 174, 96, 0.7);
+        animation: pulseGlow 2s infinite;
+    }
+    
+    @keyframes pulseGlow {
+        0%, 100% { transform: scale(1); opacity: 0.7; }
+        50% { transform: scale(1.05); opacity: 1; }
+    }
+    
+    /* Enhanced effectiveness bar */
+    .effectiveness-container {
+        position: relative;
+        margin-top: 5px;
+    }
+    
+    .effectiveness {
+        width: 100%;
+        height: 6px;
+        background-color: rgba(231, 76, 60, 0.3);
+        border-radius: 3px;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .effectiveness-fill {
+        height: 100%;
+        background-color: #2ecc71;
+        border-radius: 3px;
+        position: relative;
+    }
+    
+    .effectiveness-highlight {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 30px;
+        height: 100%;
+        background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.8) 50%, rgba(255,255,255,0) 100%);
+        transform: translateX(-100%);
+        z-index: 2;
+    }
+    
+    .counter-card:hover .effectiveness-highlight {
+        animation: shimmer 1.5s infinite;
+    }
+    
+    @keyframes shimmer {
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(400%); }
+    }
+    
+    /* Rating value highlight */
+    .effectiveness-rating {
+        text-align: right;
+        font-size: 0.8rem;
+        color: #f0edf2;
+        margin-top: 2px;
+    }
+    
+    .effectiveness-value {
+        transition: color 0.3s ease, font-weight 0.3s ease;
+    }
+    
+    .counter-card:hover .effectiveness-value {
+        color: #f99e1a;
+        font-weight: bold;
+        animation: pulseText 1s infinite;
+    }
+    
+    @keyframes pulseText {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.7; }
+    }
+    
+    /* Matchup details section */
+    .matchup-details {
+        background-color: rgba(0, 0, 0, 0.2);
+        border-radius: 5px;
+        padding: 10px;
+        margin: 10px 0;
+        display: flex;
+        align-items: center;
+        max-height: 0;
+        overflow: hidden;
+        opacity: 0;
+        transition: max-height 0.5s ease, opacity 0.3s ease, padding 0.3s ease, margin 0.3s ease;
+    }
+    
+    .counter-card:hover .matchup-details {
+        max-height: 100px;
+        opacity: 1;
+        padding: 10px;
+        margin: 10px 0;
+    }
+    
+    .matchup-icon {
+        position: relative;
+        margin-right: 10px;
+        min-width: 40px;
+    }
+    
+    .enemy-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 5px;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+    
+    .vs-text {
+        position: absolute;
+        top: -10px;
+        right: -10px;
+        background-color: #f99e1a;
+        color: #fff;
+        font-weight: bold;
+        font-size: 0.7rem;
+        padding: 2px 4px;
+        border-radius: 3px;
+        transform: rotate(15deg);
+    }
+    
+    .matchup-text {
+        font-size: 0.85rem;
+    }
+    
+    .matchup-text p {
+        margin-bottom: 0;
+    }
+    
+    /* Difficulty filter animations */
+    .difficulty-filter .btn {
+        margin-right: 5px;
+        transition: transform 0.2s ease, background-color 0.2s ease;
+    }
+    
+    .difficulty-filter .btn:hover {
+        transform: translateY(-2px);
+    }
+    
+    .difficulty-filter .btn.active {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
+</style>
+
 <script>
     // Difficulty filter functionality
     document.querySelectorAll('.difficulty-filter button')?.forEach(button => {
@@ -144,6 +379,23 @@
                     card.style.display = 'none';
                 }
             });
+        });
+    });
+    
+    // Initialize cards with staggered animation
+    document.addEventListener('DOMContentLoaded', function() {
+        const counterCards = document.querySelectorAll('.hero-counter-card');
+        
+        counterCards.forEach((card, index) => {
+            // Add staggered entrance animation
+            card.style.opacity = '0';
+            card.style.transform = 'translateY(20px)';
+            
+            setTimeout(() => {
+                card.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+                card.style.opacity = '1';
+                card.style.transform = 'translateY(0)';
+            }, 100 * index);
         });
     });
 </script>

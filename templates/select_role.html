@@ -14,8 +14,11 @@
                 <div class="row">
                     <div class="col-md-4 mb-3">
                         <a href="{{ url_for('show_counters', enemy=enemy, role='Tank') }}" class="text-decoration-none">
-                            <div class="card hero-card" style="border-color: #2980b9;">
+                            <div class="card hero-card role-card tank-card" style="border-color: #2980b9;">
                                 <div class="card-body text-center">
+                                    <div class="role-icon tank-icon mb-2">
+                                        <div class="role-icon-inner"></div>
+                                    </div>
                                     <h3 style="color: #2980b9;">Tank</h3>
                                     <p class="mb-0">High HP frontline heroes that create space</p>
                                 </div>
@@ -24,8 +27,11 @@
                     </div>
                     <div class="col-md-4 mb-3">
                         <a href="{{ url_for('show_counters', enemy=enemy, role='Damage') }}" class="text-decoration-none">
-                            <div class="card hero-card" style="border-color: #c0392b;">
+                            <div class="card hero-card role-card damage-card" style="border-color: #c0392b;">
                                 <div class="card-body text-center">
+                                    <div class="role-icon damage-icon mb-2">
+                                        <div class="role-icon-inner"></div>
+                                    </div>
                                     <h3 style="color: #c0392b;">Damage</h3>
                                     <p class="mb-0">High damage output heroes that secure eliminations</p>
                                 </div>
@@ -34,8 +40,11 @@
                     </div>
                     <div class="col-md-4 mb-3">
                         <a href="{{ url_for('show_counters', enemy=enemy, role='Support') }}" class="text-decoration-none">
-                            <div class="card hero-card" style="border-color: #27ae60;">
+                            <div class="card hero-card role-card support-card" style="border-color: #27ae60;">
                                 <div class="card-body text-center">
+                                    <div class="role-icon support-icon mb-2">
+                                        <div class="role-icon-inner"></div>
+                                    </div>
                                     <h3 style="color: #27ae60;">Support</h3>
                                     <p class="mb-0">Healing heroes that keep the team alive</p>
                                 </div>
@@ -52,4 +61,136 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+    /* Animated role cards */
+    .role-card {
+        transform: translateY(50px);
+        opacity: 0;
+        animation: slideUp 0.5s forwards;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        overflow: hidden;
+    }
+    
+    .tank-card {
+        animation-delay: 0.1s;
+    }
+    
+    .damage-card {
+        animation-delay: 0.2s;
+    }
+    
+    .support-card {
+        animation-delay: 0.3s;
+    }
+    
+    @keyframes slideUp {
+        to {
+            transform: translateY(0);
+            opacity: 1;
+        }
+    }
+    
+    /* Enhanced hover effects */
+    .role-card:hover {
+        transform: translateY(-5px) scale(1.03);
+    }
+    
+    .tank-card:hover {
+        box-shadow: 0 0 20px rgba(41, 128, 185, 0.7);
+    }
+    
+    .damage-card:hover {
+        box-shadow: 0 0 20px rgba(192, 57, 43, 0.7);
+    }
+    
+    .support-card:hover {
+        box-shadow: 0 0 20px rgba(39, 174, 96, 0.7);
+    }
+    
+    /* Role icons */
+    .role-icon {
+        width: 60px;
+        height: 60px;
+        margin: 0 auto;
+        border-radius: 50%;
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .role-icon-inner {
+        width: 40px;
+        height: 40px;
+        background-position: center;
+        background-repeat: no-repeat;
+        background-size: contain;
+    }
+    
+    .tank-icon {
+        background-color: rgba(41, 128, 185, 0.2);
+        border: 2px solid #2980b9;
+    }
+    
+    .tank-icon .role-icon-inner {
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232980b9' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z'%3E%3C/path%3E%3C/svg%3E");
+        animation: tankPulse 2s infinite;
+    }
+    
+    .damage-icon {
+        background-color: rgba(192, 57, 43, 0.2);
+        border: 2px solid #c0392b;
+    }
+    
+    .damage-icon .role-icon-inner {
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23c0392b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M18 6L6 18M6 6l12 12'%3E%3C/path%3E%3C/svg%3E");
+        animation: damagePulse 2s infinite;
+    }
+    
+    .support-icon {
+        background-color: rgba(39, 174, 96, 0.2);
+        border: 2px solid #27ae60;
+    }
+    
+    .support-icon .role-icon-inner {
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2327ae60' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 22v-4M12 6V2M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83M19.07 19.07l-2.83-2.83M7.76 7.76L4.93 4.93M22 12h-4M6 12H2'%3E%3C/path%3E%3C/svg%3E");
+        animation: supportPulse 2s infinite;
+    }
+    
+    @keyframes tankPulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.1); }
+    }
+    
+    @keyframes damagePulse {
+        0%, 100% { transform: rotate(0); }
+        25% { transform: rotate(-10deg); }
+        75% { transform: rotate(10deg); }
+    }
+    
+    @keyframes supportPulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.7; }
+    }
+    
+    /* Background animation */
+    .role-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(135deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0) 100%);
+        transform: translateX(-100%);
+        transition: transform 0.6s;
+    }
+    
+    .role-card:hover::before {
+        transform: translateX(100%);
+    }
+</style>
 {% endblock %}

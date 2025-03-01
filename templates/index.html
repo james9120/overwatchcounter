@@ -36,7 +36,7 @@
                         {% for hero in enemies %}
                         <div class="col-4 col-sm-3 mb-3 hero-item" data-role="{{ hero_roles[hero] }}">
                             <a href="{{ url_for('select_class', enemy=hero) }}" class="text-decoration-none">
-                                <div class="hero-card card text-center p-2">
+                                <div class="hero-card card text-center p-2 enhanced-hover {{ hero_roles[hero].lower() }}-glow">
                                     <img src="{{ hero_image_url(hero) }}" alt="{{ hero }}" class="hero-icon mx-auto {{ hero_roles[hero].lower() }}-border">
                                     <div class="hero-name text-light">{{ hero }}</div>
                                 </div>
@@ -88,4 +88,56 @@
         });
     });
 </script>
+
+<style>
+    /* Enhanced hover animations for hero cards */
+    .hero-card.enhanced-hover {
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .hero-card.enhanced-hover:hover {
+        transform: translateY(-8px) scale(1.05);
+    }
+    
+    /* Role-specific glow effects */
+    .tank-glow:hover {
+        box-shadow: 0 0 20px rgba(41, 128, 185, 0.8);
+    }
+    
+    .damage-glow:hover {
+        box-shadow: 0 0 20px rgba(192, 57, 43, 0.8);
+    }
+    
+    .support-glow:hover {
+        box-shadow: 0 0 20px rgba(39, 174, 96, 0.8);
+    }
+    
+    .unknown-glow:hover {
+        box-shadow: 0 0 20px rgba(149, 165, 166, 0.8);
+    }
+    
+    /* Subtle icon pulse on hover */
+    .hero-card.enhanced-hover:hover .hero-icon {
+        animation: iconPulse 1.5s infinite;
+    }
+    
+    @keyframes iconPulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.08); }
+        100% { transform: scale(1); }
+    }
+    
+    /* Hero name highlight effect */
+    .hero-card.enhanced-hover .hero-name {
+        position: relative;
+        transition: color 0.3s ease;
+    }
+    
+    .hero-card.enhanced-hover:hover .hero-name {
+        color: #f99e1a;
+        text-shadow: 0 0 5px rgba(249, 158, 26, 0.5);
+    }
+</style>
 {% endblock %}

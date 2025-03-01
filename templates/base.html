@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css">
     <style>
+        /* Base styles */
         body {
             background-color: #405275;
             color: #f0edf2;
@@ -32,10 +33,21 @@
             border-color: #0d6efd;
         }
         
+        /* ======= STANDARDIZED ANIMATION SYSTEM ======= */
+        
+        /* Page transition animation */
+        .container {
+            opacity: 0;
+            animation: fadeIn 0.6s var(--ow-ease) forwards;
+        }
+        
+        /* Hero card animations */
         .hero-card {
-            transition: transform 0.2s;
+            transition: transform 0.3s var(--ow-ease), box-shadow 0.3s var(--ow-ease);
             cursor: pointer;
             height: 100%;
+            position: relative;
+            overflow: hidden;
         }
         
         .hero-card:hover {
@@ -43,118 +55,145 @@
             box-shadow: 0 5px 15px rgba(249, 158, 26, 0.8);
         }
         
+        /* Light sweep animation - standardized for all cards */
+        .hero-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0) 100%);
+            transform: translateX(-100%);
+            transition: transform 0.6s var(--ow-ease);
+            pointer-events: none;
+        }
+        
+        .hero-card:hover::before {
+            transform: translateX(100%);
+        }
+        
+        /* Role-based hero icons and borders */
         .hero-icon {
             width: 64px;
             height: 64px;
             border-radius: 8px;
             border: 2px solid #fff;
+            transition: transform 0.3s var(--ow-ease), box-shadow 0.3s var(--ow-ease);
         }
         
+        /* Role-specific borders with standardized colors */
         .tank-border {
-            border-color: #2980b9;
+            border-color: var(--ow-tank-color);
         }
         
         .damage-border {
-            border-color: #c0392b;
+            border-color: var(--ow-damage-color);
         }
         
         .support-border {
-            border-color: #27ae60;
+            border-color: var(--ow-support-color);
         }
         
         .unknown-border {
-            border-color: #777;
+            border-color: var(--ow-neutral-color);
         }
         
+        /* Standardized role-specific glow effects */
+        .hero-card:hover .tank-border {
+            box-shadow: 0 0 15px var(--ow-tank-glow);
+            animation: pulseBorder 2s infinite;
+        }
+        
+        .hero-card:hover .damage-border {
+            box-shadow: 0 0 15px var(--ow-damage-glow);
+            animation: pulseBorder 2s infinite;
+        }
+        
+        .hero-card:hover .support-border {
+            box-shadow: 0 0 15px var(--ow-support-glow);
+            animation: pulseBorder 2s infinite;
+        }
+        
+        .hero-card:hover .unknown-border {
+            box-shadow: 0 0 15px var(--ow-neutral-glow);
+            animation: pulseBorder 2s infinite;
+        }
+        
+        /* Standardized pulse animation */
+        @keyframes pulseBorder {
+            0%, 100% { transform: scale(1); opacity: 0.8; }
+            50% { transform: scale(1.05); opacity: 1; }
+        }
+        
+        /* Effectiveness bar styles */
         .effectiveness {
             width: 100%;
             height: 6px;
-            background-color: #e74c3c;
+            background-color: rgba(231, 76, 60, 0.3);
             border-radius: 3px;
             margin-top: 5px;
+            position: relative;
+            overflow: hidden;
         }
         
         .effectiveness-fill {
             height: 100%;
             background-color: #2ecc71;
             border-radius: 3px;
+            position: relative;
+            transition: width 1s var(--ow-ease-out);
         }
         
-        .filter-btn {
-            margin-right: 5px;
-            margin-bottom: 5px;
+        .effectiveness-highlight {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 30px;
+            height: 100%;
+            background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.8) 50%, rgba(255,255,255,0) 100%);
+            transform: translateX(-100%);
+            z-index: 2;
         }
         
-        .filter-btn.active {
-            background-color: #f99e1a;
-            border-color: #f99e1a;
+        .hero-card:hover .effectiveness-highlight {
+            animation: shimmer 1.5s infinite;
         }
         
-        .hero-name {
-            font-weight: bold;
-            margin-top: 5px;
+        /* Page-specific component animations */
+        .role-card {
+            transform: translateY(50px);
+            opacity: 0;
+            animation: slideUp 0.5s var(--ow-ease-out) forwards;
+            transition: transform 0.3s var(--ow-ease), box-shadow 0.3s var(--ow-ease);
+            overflow: hidden;
         }
         
-        .result-header {
-            background: linear-gradient(135deg, #f99e1a, #218ffe);
-            color: #fff;
-            padding: 1.5rem;
-            border-top-left-radius: 8px;
-            border-top-right-radius: 8px;
+        .tank-card {
+            animation-delay: 0.1s;
         }
         
-        .result-body {
-            padding: 1.5rem;
-            background-color: rgba(0, 0, 0, 0.7);
-            color: #f0edf2;
+        .damage-card {
+            animation-delay: 0.2s;
         }
         
-        .hero-weakness {
-            background-color: rgba(231, 76, 60, 0.2);
-            border-left: 4px solid #e74c3c;
-            padding: 10px;
-            margin-bottom: 15px;
+        .support-card {
+            animation-delay: 0.3s;
         }
         
-        .tip-card {
-            background-color: rgba(52, 152, 219, 0.1);
-            border-left: 4px solid #218ffe;
-            padding: 10px;
-            margin-bottom: 10px;
+        /* Card animation for counter results */
+        .hero-counter-card {
+            transition: all 0.3s var(--ow-ease);
         }
         
-        .synergy-badge {
-            background-color: #8e44ad;
-            margin-right: 5px;
-            margin-bottom: 5px;
-        }
-        
-        .map-badge {
-            background-color: #16a085;
-            margin-right: 5px;
-            margin-bottom: 5px;
-        }
-        
-        .search-box {
-            background-color: rgba(255, 255, 255, 0.2);
-            border: 1px solid #f0edf2;
-            color: #f0edf2;
-        }
-        
-        .search-box::placeholder {
-            color: rgba(255, 255, 255, 0.7);
-        }
-        
-        .difficulty-meter {
-            margin-top: 8px;
-        }
-        
+        /* Difficulty pips */
         .difficulty-pip {
             width: 8px;
             height: 8px;
             border-radius: 50%;
             background-color: #444;
             margin-right: 4px;
+            transition: background-color 0.3s var(--ow-ease);
         }
         
         .difficulty-pip.active {
@@ -173,17 +212,80 @@
             background-color: #e74c3c;  /* Red for hard */
         }
         
-        .beginner-friendly-section {
-            background-color: rgba(39, 174, 96, 0.2);
-            border-left: 4px solid #27ae60;
-            padding: 10px;
-            margin-bottom: 15px;
-        }
-        
-        .difficulty-filter .btn {
+        /* Filter buttons */
+        .filter-btn {
             margin-right: 5px;
+            margin-bottom: 5px;
+            transition: transform 0.2s var(--ow-ease), background-color 0.2s var(--ow-ease), box-shadow 0.2s var(--ow-ease);
         }
         
+        .filter-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+        
+        .filter-btn.active {
+            background-color: #f99e1a;
+            border-color: #f99e1a;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        
+        /* Standardized animation keyframes */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        @keyframes slideUp {
+            to { transform: translateY(0); opacity: 1; }
+        }
+        
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(400%); }
+        }
+        
+        @keyframes pulseGlow {
+            0%, 100% { transform: scale(1); opacity: 0.7; }
+            50% { transform: scale(1.05); opacity: 1; }
+        }
+        
+        @keyframes pulseText {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.8; }
+        }
+        
+        /* CSS Custom Properties for Standardized Values */
+        :root {
+            /* Animation timing */
+            --ow-duration-short: 0.2s;
+            --ow-duration-medium: 0.3s;
+            --ow-duration-long: 0.5s;
+            
+            /* Easing functions */
+            --ow-ease: cubic-bezier(0.25, 0.1, 0.25, 1.0);
+            --ow-ease-out: cubic-bezier(0.0, 0.0, 0.2, 1.0);
+            --ow-ease-in: cubic-bezier(0.42, 0.0, 1.0, 1.0);
+            
+            /* Role colors */
+            --ow-tank-color: #2980b9;
+            --ow-damage-color: #c0392b;
+            --ow-support-color: #27ae60;
+            --ow-neutral-color: #777;
+            
+            /* Glow strengths */
+            --ow-tank-glow: rgba(41, 128, 185, 0.7);
+            --ow-damage-glow: rgba(192, 57, 43, 0.7);
+            --ow-support-glow: rgba(39, 174, 96, 0.7);
+            --ow-neutral-glow: rgba(149, 165, 166, 0.7);
+            
+            /* Overwatch brand colors */
+            --ow-orange: #f99e1a;
+            --ow-blue: #218ffe;
+        }
+        
+        /* Media queries */
         @media (max-width: 768px) {
             .hero-card {
                 margin-bottom: 15px;
@@ -194,17 +296,94 @@
         .selected-hero {
             border-color: #2ecc71 !important;
             box-shadow: 0 0 10px rgba(46, 204, 113, 0.7) !important;
+            transform: translateY(-3px);
+            transition: all 0.3s var(--ow-ease);
         }
         
         .hero-selected-indicator {
             position: absolute;
             top: 5px;
             right: 5px;
+            transition: all 0.3s var(--ow-ease);
         }
         
-        .nav-dropdown-item.active {
-            background-color: #f99e1a;
+        .hero-name {
+            font-weight: bold;
+            margin-top: 5px;
+            transition: color 0.3s var(--ow-ease);
+        }
+        
+        .hero-card:hover .hero-name {
+            color: var(--ow-orange);
+        }
+        
+        /* Results page styles */
+        .result-header {
+            background: linear-gradient(135deg, #f99e1a, #218ffe);
             color: #fff;
+            padding: 1.5rem;
+            border-top-left-radius: 8px;
+            border-top-right-radius: 8px;
+        }
+        
+        .result-body {
+            padding: 1.5rem;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: #f0edf2;
+        }
+        
+        /* Sections with standardized styles */
+        .hero-weakness {
+            background-color: rgba(231, 76, 60, 0.2);
+            border-left: 4px solid #e74c3c;
+            padding: 10px;
+            margin-bottom: 15px;
+            transition: background-color 0.3s var(--ow-ease);
+        }
+        
+        .hero-weakness:hover {
+            background-color: rgba(231, 76, 60, 0.3);
+        }
+        
+        .tip-card {
+            background-color: rgba(52, 152, 219, 0.1);
+            border-left: 4px solid #218ffe;
+            padding: 10px;
+            margin-bottom: 10px;
+            transition: background-color 0.3s var(--ow-ease);
+        }
+        
+        .tip-card:hover {
+            background-color: rgba(52, 152, 219, 0.2);
+        }
+        
+        .beginner-friendly-section {
+            background-color: rgba(39, 174, 96, 0.2);
+            border-left: 4px solid #27ae60;
+            padding: 10px;
+            margin-bottom: 15px;
+            transition: background-color 0.3s var(--ow-ease);
+        }
+        
+        .beginner-friendly-section:hover {
+            background-color: rgba(39, 174, 96, 0.3);
+        }
+        
+        /* Form elements */
+        .search-box {
+            background-color: rgba(255, 255, 255, 0.2);
+            border: 1px solid #f0edf2;
+            color: #f0edf2;
+            transition: all 0.3s var(--ow-ease);
+        }
+        
+        .search-box:focus {
+            background-color: rgba(255, 255, 255, 0.3);
+            box-shadow: 0 0 10px rgba(249, 158, 26, 0.3);
+        }
+        
+        .search-box::placeholder {
+            color: rgba(255, 255, 255, 0.7);
         }
     </style>
 </head>
@@ -262,6 +441,33 @@
     </div>
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Standardized Animation Handling -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Fade in any loading elements if present
+            const loadingElements = document.querySelectorAll('.loading-element');
+            loadingElements.forEach(el => {
+                setTimeout(() => {
+                    el.classList.add('loaded');
+                }, 300);
+            });
+            
+            // Initialize any staggered card animations
+            const animCards = document.querySelectorAll('.anim-stagger');
+            animCards.forEach((card, index) => {
+                card.style.opacity = '0';
+                card.style.transform = 'translateY(20px)';
+                
+                setTimeout(() => {
+                    card.style.transition = 'opacity 0.5s var(--ow-ease-out), transform 0.5s var(--ow-ease-out)';
+                    card.style.opacity = '1';
+                    card.style.transform = 'translateY(0)';
+                }, 100 * index);
+            });
+        });
+    </script>
+    
     {% block scripts %}{% endblock %}
 </body>
 </html>
