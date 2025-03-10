@@ -38,8 +38,10 @@
                     
                     <div class="row" id="heroGrid">
                         {% for hero in enemies %}
-                        <div class="col-6 col-sm-4 col-md-3 col-lg-2 mb-3 hero-item" data-role="{{ hero_roles[hero] }}">
-                            <div class="hero-card card text-center p-2 {{ hero_roles[hero].lower() }}-glow" id="hero-card-{{ hero|replace(' ', '-')|replace(':', '')|replace('.', '') }}" onclick="toggleHeroSelection('{{ hero }}')">
+                        <div class="col-6 col-sm-4 col-md-3 col-lg-2 mb-3 hero-item" data-role="{{ hero_roles[hero] }}" data-hero="{{ hero }}">
+                            <div class="hero-card card text-center p-2 {{ hero_roles[hero].lower() }}-glow" 
+                                 id="hero-card-{{ hero|replace(' ', '-')|replace(':', '-')|replace('.', '-') }}" 
+                                 onclick="toggleHeroSelection('{{ hero }}')">
                                 <img src="{{ hero_image_url(hero) }}" alt="{{ hero }}" class="hero-icon mx-auto {{ hero_roles[hero].lower() }}-border">
                                 <div class="hero-name text-light">{{ hero }}</div>
                                 <div class="hero-selected-indicator" style="display: none;">
@@ -65,14 +67,26 @@
 
 {% block scripts %}
 <script>
+    // Improved function to safely convert hero names to valid element IDs
+    function heroNameToId(heroName) {
+        // Replace spaces, colons, and periods with hyphens
+        return heroName.replace(/[ :\.]/g, '-');
+    }
+    
     // Track selected enemies
     const selectedEnemies = new Set();
     const maxSelections = 5;
     
     // Toggle hero selection
     function toggleHeroSelection(heroName) {
-        const heroId = heroName.replace(/[ :\.]/g, '-');
+        const heroId = heroNameToId(heroName);
         const card = document.getElementById('hero-card-' + heroId);
+        
+        if (!card) {
+            console.error('Could not find card element for hero:', heroName, 'with ID:', 'hero-card-' + heroId);
+            return;
+        }
+        
         const indicator = card.querySelector('.hero-selected-indicator');
         const ripple = card.querySelector('.selection-ripple');
         
@@ -95,14 +109,14 @@
             // Deselect
             selectedEnemies.delete(heroName);
             card.classList.remove('selected-hero');
-            indicator.style.display = 'none';
+            if (indicator) indicator.style.display = 'none';
             removeFromSelectedDisplay(heroName);
         } else {
             // Select if under maximum
             if (selectedEnemies.size < maxSelections) {
                 selectedEnemies.add(heroName);
                 card.classList.add('selected-hero');
-                indicator.style.display = 'block';
+                if (indicator) indicator.style.display = 'block';
                 addToSelectedDisplay(heroName);
             } else {
                 // Show maximum selected notification
@@ -136,7 +150,7 @@
     // Add hero to the selected display area
     function addToSelectedDisplay(heroName) {
         const displayArea = document.getElementById('selected-heroes-display');
-        const heroId = heroName.replace(/[ :\.]/g, '-');
+        const heroId = heroNameToId(heroName);
         
         const heroElement = document.createElement('div');
         heroElement.className = 'selected-hero-display m-1';
@@ -145,9 +159,17 @@
         heroElement.style.transform = 'scale(0.8)';
         
         // Get hero role for border color
-        const heroItem = document.querySelector(`.hero-item div[id="hero-card-${heroId}"]`);
-        const heroImg = heroItem.querySelector('img').cloneNode(true);
-        heroImg.className = 'hero-icon-small mx-auto ' + heroImg.className.split(' ').filter(c => c.includes('-border'))[0];
+        const heroItem = document.querySelector(`.hero-item[data-hero="${heroName}"]`);
+        if (!heroItem) {
+            console.error('Could not find hero item for:', heroName);
+            return;
+        }
+        
+        const heroRole = heroItem.getAttribute('data-role').toLowerCase();
+        const heroImg = document.createElement('img');
+        heroImg.src = heroItem.querySelector('img').src;
+        heroImg.alt = heroName;
+        heroImg.className = `hero-icon-small mx-auto ${heroRole}-border`;
         
         const heroTitle = document.createElement('div');
         heroTitle.className = 'small mt-1';
@@ -179,7 +201,7 @@
     
     // Remove hero from selected display
     function removeFromSelectedDisplay(heroName) {
-        const heroId = heroName.replace(/[ :\.]/g, '-');
+        const heroId = heroNameToId(heroName);
         const element = document.getElementById('selected-display-' + heroId);
         if (element) {
             // Animate removal
@@ -213,17 +235,19 @@
     }
     
     // Clear all selections
-    document.getElementById('clear-selection-btn').addEventListener('click', function() {
-        // Deselect all heroes
-        selectedEnemies.forEach(hero => {
-            toggleHeroSelection(hero);
-        });
-        
+    document.getElementById('clear-selection-btn')?.addEventListener('click', function() {
         // Clear the selected heroes display
         document.getElementById('selected-heroes-display').innerHTML = '';
         document.getElementById('selected-count').textContent = '0';
         
-        // Manually empty the set in case toggleHeroSelection missed anything
+        // Reset all hero cards
+        document.querySelectorAll('.hero-card').forEach(card => {
+            card.classList.remove('selected-hero');
+            const indicator = card.querySelector('.hero-selected-indicator');
+            if (indicator) indicator.style.display = 'none';
+        });
+        
+        // Clear the set
         selectedEnemies.clear();
         
         // Update buttons
@@ -231,7 +255,7 @@
     });
     
     // Update hidden form field before submission
-    document.getElementById('enemy-form').addEventListener('submit', function(e) {
+    document.getElementById('enemy-form')?.addEventListener('submit', function(e) {
         document.getElementById('selected-enemies').value = 
             Array.from(selectedEnemies).join(',');
             
