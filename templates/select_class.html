@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block title %}Select Role - Overwatch Counter Picker{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <div class="card shadow">
+                <div class="card-header bg-transparent text-center">
+                    <h2 class="mb-0" style="color: #f99e1a;">Select Your Role</h2>
+                    <p class="text-light mt-2">Choose your role to counter {{ enemy }}</p>
+                </div>
+                <div class="card-body">
+                    <div class="text-center mb-4">
+                        <img src="{{ hero_image_url(enemy) }}" alt="{{ enemy }}" class="hero-icon mb-2" style="width: 100px; height: 100px;">
+                        <h4 class="text-light">{{ enemy }}</h4>
+                        <div class="badge bg-primary">{{ hero_roles.get(enemy, 'Unknown') }}</div>
+                    </div>
+
+                    <div class="row g-4">
+                        <div class="col-md-4">
+                            <a href="{{ url_for('show_counters', enemy=enemy, user_role='Tank') }}" class="text-decoration-none">
+                                <div class="card role-card h-100 bg-dark text-center p-3 hover-effect">
+                                    <img src="{{ url_for('static', filename='images/roles/tank.png') }}" alt="Tank" class="role-icon mx-auto mb-2">
+                                    <h5 class="text-primary mb-2">Tank</h5>
+                                    <p class="text-light small mb-0">High health pool, protect team</p>
+                                </div>
+                            </a>
+                        </div>
+                        <div class="col-md-4">
+                            <a href="{{ url_for('show_counters', enemy=enemy, user_role='Damage') }}" class="text-decoration-none">
+                                <div class="card role-card h-100 bg-dark text-center p-3 hover-effect">
+                                    <img src="{{ url_for('static', filename='images/roles/damage.png') }}" alt="Damage" class="role-icon mx-auto mb-2">
+                                    <h5 class="text-danger mb-2">Damage</h5>
+                                    <p class="text-light small mb-0">High damage output, secure kills</p>
+                                </div>
+                            </a>
+                        </div>
+                        <div class="col-md-4">
+                            <a href="{{ url_for('show_counters', enemy=enemy, user_role='Support') }}" class="text-decoration-none">
+                                <div class="card role-card h-100 bg-dark text-center p-3 hover-effect">
+                                    <img src="{{ url_for('static', filename='images/roles/support.png') }}" alt="Support" class="role-icon mx-auto mb-2">
+                                    <h5 class="text-success mb-2">Support</h5>
+                                    <p class="text-light small mb-0">Heal team, provide utility</p>
+                                </div>
+                            </a>
+                        </div>
+                    </div>
+
+                    <div class="text-center mt-4">
+                        <a href="{{ url_for('counters') }}" class="btn btn-outline-light">
+                            <i class="bi bi-arrow-left"></i> Choose Different Enemy
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.role-icon {
+    width: 50px;
+    height: 50px;
+}
+
+.role-card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.hover-effect:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 5px 15px rgba(249, 158, 26, 0.3);
+}
+
+.hero-icon {
+    border-radius: 10px;
+    border: 3px solid #f99e1a;
+}
+</style>
+{% endblock %} 

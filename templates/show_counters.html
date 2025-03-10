@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block title %}Counter Recommendations - Overwatch{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <div class="card shadow">
+                <div class="card-header bg-transparent text-center">
+                    <h2 class="mb-0" style="color: #f99e1a;">Counter Recommendations</h2>
+                    <p class="text-light mt-2">Best {{ user_role }} heroes to counter {{ enemy }}</p>
+                </div>
+                <div class="card-body">
+                    <!-- Enemy Info -->
+                    <div class="text-center mb-4">
+                        <img src="{{ hero_image_url(enemy) }}" alt="{{ enemy }}" class="hero-icon mb-2" style="width: 100px; height: 100px;">
+                        <h4 class="text-light">{{ enemy }}</h4>
+                        <div class="badge bg-primary">{{ hero_roles.get(enemy, 'Unknown') }}</div>
+                        
+                        {% if weaknesses %}
+                        <div class="mt-3">
+                            <h5 class="text-light">Weaknesses</h5>
+                            <div class="d-flex flex-wrap justify-content-center gap-2">
+                                {% for weakness in weaknesses %}
+                                <span class="badge bg-danger">{{ weakness }}</span>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Counter Heroes -->
+                    {% if counters %}
+                    <div class="row g-3">
+                        {% for counter in counters %}
+                        <div class="col-md-6">
+                            <div class="card bg-dark h-100">
+                                <div class="card-body">
+                                    <div class="d-flex align-items-center">
+                                        <img src="{{ hero_image_url(counter.hero) }}" alt="{{ counter.hero }}" class="hero-icon-small me-3">
+                                        <div>
+                                            <h5 class="text-light mb-1">{{ counter.hero }}</h5>
+                                            <div class="badge bg-{{ 'success' if counter.effectiveness >= 4 else 'warning' if counter.effectiveness >= 3 else 'danger' }}">
+                                                Effectiveness: {{ counter.effectiveness }}/5
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% if counter.reason %}
+                                    <p class="text-light small mt-2 mb-0">{{ counter.reason }}</p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="alert alert-warning text-center">
+                        No specific counters found for {{ enemy }} in the {{ user_role }} role.
+                        <br>
+                        Try selecting a different role or enemy hero.
+                    </div>
+                    {% endif %}
+
+                    <!-- Navigation -->
+                    <div class="text-center mt-4">
+                        <a href="{{ url_for('select_class', enemy=enemy) }}" class="btn btn-outline-light me-2">
+                            <i class="bi bi-arrow-left"></i> Choose Different Role
+                        </a>
+                        <a href="{{ url_for('counters') }}" class="btn btn-outline-light">
+                            <i class="bi bi-arrow-repeat"></i> Start Over
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.hero-icon {
+    border-radius: 10px;
+    border: 3px solid #f99e1a;
+}
+
+.hero-icon-small {
+    width: 50px;
+    height: 50px;
+    border-radius: 5px;
+    border: 2px solid #f99e1a;
+}
+
+.card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 5px 15px rgba(249, 158, 26, 0.3);
+}
+</style>
+{% endblock %} 

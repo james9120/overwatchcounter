@@ -1,0 +1,289 @@
+{% extends "base.html" %}
+
+{% block title %}Game Tracker - Overwatch{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header bg-transparent">
+                <h3 class="text-center mb-0" style="color: #f99e1a;">Add Game</h3>
+            </div>
+            <div class="card-body">
+                <form action="{{ url_for('add_game') }}" method="post">
+                    <div class="mb-3">
+                        <label for="role" class="form-label">Role</label>
+                        <select name="role" id="role" class="form-select search-box" required>
+                            <option value="">Select a role</option>
+                            {% for role in roles %}
+                            <option value="{{ role }}">{{ role }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="hero" class="form-label">Hero Played</label>
+                        <select name="hero" id="hero" class="form-select search-box" required>
+                            <option value="">Select a hero</option>
+                            {% for role, heroes in hero_data.items() %}
+                                <optgroup label="{{ role }}">
+                                    {% for hero in heroes %}
+                                    <option value="{{ hero }}" data-role="{{ role }}">{{ hero }}</option>
+                                    {% endfor %}
+                                </optgroup>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="map" class="form-label">Map</label>
+                        <select name="map" id="map" class="form-select search-box" required>
+                            <option value="">Select a map</option>
+                            {% for map in maps %}
+                            <option value="{{ map }}">{{ map }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Result</label>
+                        <div class="d-flex">
+                            <div class="form-check me-3">
+                                <input class="form-check-input" type="radio" name="result" id="resultWin" value="win" required>
+                                <label class="form-check-label" for="resultWin">Win</label>
+                            </div>
+                            <div class="form-check me-3">
+                                <input class="form-check-input" type="radio" name="result" id="resultLoss" value="loss">
+                                <label class="form-check-label" for="resultLoss">Loss</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="result" id="resultDraw" value="draw">
+                                <label class="form-check-label" for="resultDraw">Draw</label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="sr_change" class="form-label">SR Change</label>
+                        <input type="number" class="form-control search-box" id="sr_change" name="sr_change" placeholder="e.g. 25 or -20">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="enemy_team" class="form-label">Enemy Team Composition</label>
+                        <textarea class="form-control search-box" id="enemy_team" name="enemy_team" rows="2" placeholder="e.g. Reinhardt, Zarya, Genji, Soldier: 76, Mercy"></textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="notes" class="form-label">Notes</label>
+                        <textarea class="form-control search-box" id="notes" name="notes" rows="2" placeholder="Any notes about this match"></textarea>
+                    </div>
+                    
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">Save Game</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header bg-transparent">
+                <h3 class="text-center mb-0" style="color: #f99e1a;">Top Heroes</h3>
+            </div>
+            <div class="card-body">
+                {% if hero_stats %}
+                    {% for stat in hero_stats[:3] %}
+                        <div class="hero-stat-item mb-3">
+                            <div class="d-flex align-items-center">
+                                <img src="{{ get_hero_image_url(stat['hero']) }}" class="hero-icon-small me-2" alt="{{ stat['hero'] }}">
+                                <div class="flex-grow-1">
+                                    <h5 class="mb-0">{{ stat['hero'] }}</h5>
+                                    <div class="d-flex justify-content-between">
+                                        <div class="small">{{ stat['wins'] }}-{{ stat['losses'] }}-{{ stat['draws'] }}</div>
+                                        <div class="small">
+                                            {% if stat['games_played'] > 0 %}
+                                                {{ (stat['wins'] / stat['games_played'] * 100)|round|int }}% Win Rate
+                                            {% else %}
+                                                0% Win Rate
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="effectiveness">
+                                        {% if stat['games_played'] > 0 %}
+                                            <div class="effectiveness-fill" style="width: {{ (stat['wins'] / stat['games_played'] * 100)|round|int }}%"></div>
+                                        {% else %}
+                                            <div class="effectiveness-fill" style="width: 0%"></div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-center">No hero stats yet.<br>Start tracking your games!</p>
+                {% endif %}
+                
+                <div class="d-grid mt-3">
+                    <a href="{{ url_for('overall_stats') }}" class="btn btn-outline-light">View All Stats</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-transparent">
+                <h3 class="text-center mb-0" style="color: #f99e1a;">Recent Games</h3>
+            </div>
+            <div class="card-body">
+                {% if recent_games %}
+                    <div class="table-responsive">
+                        <table class="table table-dark table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Hero</th>
+                                    <th>Map</th>
+                                    <th>Result</th>
+                                    <th>SR</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for game in recent_games %}
+                                <tr class="{% if game['result'] == 'win' %}table-success{% elif game['result'] == 'loss' %}table-danger{% else %}table-warning{% endif %}">
+                                    <td>{{ game['created_at']|replace('T', ' ')|truncate(16, true, '') }}</td>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <img src="{{ get_hero_image_url(game['hero_played']) }}" class="hero-icon-xsmall me-1" alt="{{ game['hero_played'] }}">
+                                            <a href="{{ url_for('hero_stats', hero=game['hero_played']) }}" class="text-white">
+                                                {{ game['hero_played'] }}
+                                            </a>
+                                        </div>
+                                    </td>
+                                    <td>{{ game['map'] }}</td>
+                                    <td>
+                                        {% if game['result'] == 'win' %}
+                                        <span class="badge bg-success">Win</span>
+                                        {% elif game['result'] == 'loss' %}
+                                        <span class="badge bg-danger">Loss</span>
+                                        {% else %}
+                                        <span class="badge bg-warning text-dark">Draw</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if game['sr_change'] > 0 %}
+                                        <span class="text-success">+{{ game['sr_change'] }}</span>
+                                        {% elif game['sr_change'] < 0 %}
+                                        <span class="text-danger">{{ game['sr_change'] }}</span>
+                                        {% else %}
+                                        <span class="text-warning">0</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <button type="button" class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#gameDetails{{ game['id'] }}">
+                                            <i class="bi bi-info-circle"></i>
+                                        </button>
+                                        <form action="{{ url_for('delete_game', game_id=game['id']) }}" method="post" class="d-inline">
+                                            <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to delete this game record?')">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                
+                                <!-- Game Details Modal -->
+                                <div class="modal fade" id="gameDetails{{ game['id'] }}" tabindex="-1" aria-hidden="true">
+                                    <div class="modal-dialog">
+                                        <div class="modal-content bg-dark text-light">
+                                            <div class="modal-header">
+                                                <h5 class="modal-title">Game Details - {{ game['created_at']|replace('T', ' ')|truncate(16, true, '') }}</h5>
+                                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                                            </div>
+                                            <div class="modal-body">
+                                                <div class="row mb-3">
+                                                    <div class="col-md-4 text-center">
+                                                        <img src="{{ get_hero_image_url(game['hero_played']) }}" class="hero-icon" alt="{{ game['hero_played'] }}">
+                                                        <h5 class="mt-2">{{ game['hero_played'] }}</h5>
+                                                        <div class="badge bg-primary">{{ game['role'] }}</div>
+                                                    </div>
+                                                    <div class="col-md-8">
+                                                        <p><strong>Map:</strong> {{ game['map'] }}</p>
+                                                        <p><strong>Result:</strong> 
+                                                            {% if game['result'] == 'win' %}
+                                                            <span class="badge bg-success">Win</span>
+                                                            {% elif game['result'] == 'loss' %}
+                                                            <span class="badge bg-danger">Loss</span>
+                                                            {% else %}
+                                                            <span class="badge bg-warning text-dark">Draw</span>
+                                                            {% endif %}
+                                                        </p>
+                                                        <p><strong>SR Change:</strong> 
+                                                            {% if game['sr_change'] > 0 %}
+                                                            <span class="text-success">+{{ game['sr_change'] }}</span>
+                                                            {% elif game['sr_change'] < 0 %}
+                                                            <span class="text-danger">{{ game['sr_change'] }}</span>
+                                                            {% else %}
+                                                            <span class="text-warning">0</span>
+                                                            {% endif %}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                
+                                                {% if game['enemy_team'] %}
+                                                <div class="mb-3">
+                                                    <h6>Enemy Team</h6>
+                                                    <p>{{ game['enemy_team'] }}</p>
+                                                </div>
+                                                {% endif %}
+                                                
+                                                {% if game['notes'] %}
+                                                <div class="mb-3">
+                                                    <h6>Notes</h6>
+                                                    <p>{{ game['notes'] }}</p>
+                                                </div>
+                                                {% endif %}
+                                            </div>
+                                            <div class="modal-footer">
+                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="text-center py-4">
+                        <p class="mb-0">No games recorded yet. Add your first game!</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Filter heroes based on selected role
+        document.getElementById('role').addEventListener('change', function() {
+            const selectedRole = this.value;
+            const heroSelect = document.getElementById('hero');
+            const options = heroSelect.getElementsByTagName('option');
+            
+            for (let option of options) {
+                if (option.value === '') continue; // Skip the placeholder option
+                
+                const heroRole = option.getAttribute('data-role');
+                if (selectedRole === '' || heroRole === selectedRole) {
+                    option.style.display = '';
+                } else {
+                    option.style.display = 'none';
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}

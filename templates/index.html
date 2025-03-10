@@ -1,143 +1,125 @@
 {% extends "base.html" %}
 
-{% block title %}Overwatch 2 Counter Picker{% endblock %}
+{% block title %}Overwatch Companion{% endblock %}
 
 {% block content %}
-    {% if not enemies or enemies|length == 0 %}
-    <div class="alert alert-danger text-center">
-        <h4>Error: Excel file not found or data missing</h4>
-        <p>Please make sure 'Overwatch Counters.xlsx' exists in the application folder with the required columns.</p>
-    </div>
-    {% else %}
-    <div class="row justify-content-center">
-        <div class="col-md-8 col-lg-6">
-            <div class="card shadow mb-4">
-                <div class="card-header bg-transparent border-0">
-                    <h2 class="text-center mb-0" style="color: #f99e1a;">Who's Giving You Trouble?</h2>
-                    <p class="text-center text-light mt-2">
-                        Looking for team counters? <a href="{{ url_for('multi_enemy_selection') }}" class="text-warning">Try Multi-Enemy Counter →</a>
-                    </p>
+<div class="row justify-content-center">
+    <div class="col-lg-10">
+        <div class="card mb-4">
+            <div class="card-body text-center">
+                <h1 class="mb-4"><span style="color: #f99e1a;">OVERWATCH</span> <span style="color: #218ffe;">COMPANION</span></h1>
+                <p class="lead">Your all-in-one tool for Overwatch 2 counter picking and match tracking</p>
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="col-md-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-header bg-transparent">
+                        <h3 class="text-center mb-0" style="color: #f99e1a;">Counter Picker</h3>
+                    </div>
+                    <div class="card-body">
+                        <p>Find effective counter picks against enemy heroes to gain the competitive edge:</p>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <a href="{{ url_for('enemy_selection') }}" class="card feature-button tank-bg">
+                                    <i class="bi bi-person-fill feature-icon"></i>
+                                    <h4>Single Hero Counter</h4>
+                                </a>
+                            </div>
+                            <div class="col-md-6">
+                                <a href="{{ url_for('multi_enemy_selection') }}" class="card feature-button damage-bg">
+                                    <i class="bi bi-people-fill feature-icon"></i>
+                                    <h4>Team Counter</h4>
+                                </a>
+                            </div>
+                        </div>
+                        <div class="mt-3">
+                            <ul>
+                                <li>Get hero recommendations based on enemy picks</li>
+                                <li>See detailed counter matchups and effectiveness ratings</li>
+                                <li>Find beginner-friendly counter options</li>
+                                <li>Analyze enemy team weaknesses</li>
+                            </ul>
+                        </div>
+                    </div>
                 </div>
-                <div class="card-body">
-                    <div class="mb-4">
-                        <input type="text" id="heroSearch" class="form-control search-box" placeholder="Search for a hero...">
+            </div>
+            
+            <div class="col-md-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-header bg-transparent">
+                        <h3 class="text-center mb-0" style="color: #f99e1a;">Game Tracker</h3>
                     </div>
-                    
-                    <div class="mb-3">
-                        <div class="d-flex flex-wrap">
-                            <button class="btn btn-sm btn-outline-light filter-btn active" data-role="all">All</button>
-                            <button class="btn btn-sm btn-outline-primary filter-btn" data-role="Tank">Tanks</button>
-                            <button class="btn btn-sm btn-outline-danger filter-btn" data-role="Damage">Damage</button>
-                            <button class="btn btn-sm btn-outline-success filter-btn" data-role="Support">Support</button>
+                    <div class="card-body">
+                        <p>Track your competitive matches to identify strengths and improve performance:</p>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <a href="{{ url_for('game_tracker') }}" class="card feature-button support-bg">
+                                    <i class="bi bi-plus-circle-fill feature-icon"></i>
+                                    <h4>Track Games</h4>
+                                </a>
+                            </div>
+                            <div class="col-md-6">
+                                {% if logged_in %}
+                                <a href="{{ url_for('overall_stats') }}" class="card feature-button tank-bg">
+                                    <i class="bi bi-bar-chart-fill feature-icon"></i>
+                                    <h4>View Stats</h4>
+                                </a>
+                                {% else %}
+                                <a href="#" data-bs-toggle="modal" data-bs-target="#userIdModal" class="card feature-button tank-bg">
+                                    <i class="bi bi-bar-chart-fill feature-icon"></i>
+                                    <h4>Login to View Stats</h4>
+                                </a>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="mt-3">
+                            <ul>
+                                <li>Record match results with detailed information</li>
+                                <li>Track SR changes and win rates</li>
+                                <li>View map-specific performance</li>
+                                <li>Identify your best heroes with detailed stats</li>
+                            </ul>
                         </div>
                     </div>
-                    
-                    <div class="row" id="heroGrid">
-                        {% for hero in enemies %}
-                        <div class="col-4 col-sm-3 mb-3 hero-item" data-role="{{ hero_roles[hero] }}">
-                            <a href="{{ url_for('select_class', enemy=hero) }}" class="text-decoration-none">
-                                <div class="hero-card card text-center p-2 enhanced-hover {{ hero_roles[hero].lower() }}-glow">
-                                    <img src="{{ hero_image_url(hero) }}" alt="{{ hero }}" class="hero-icon mx-auto {{ hero_roles[hero].lower() }}-border">
-                                    <div class="hero-name text-light">{{ hero }}</div>
-                                </div>
-                            </a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-transparent">
+                        <h3 class="text-center mb-0" style="color: #f99e1a;">How to Use</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h4 class="tank">Counter Picker</h4>
+                                <ol>
+                                    <li>Select either Single Hero Counter or Team Counter</li>
+                                    <li>Choose the enemy hero(es) that you want to counter</li>
+                                    <li>Select your preferred role (Tank, Damage, or Support)</li>
+                                    <li>Review the recommended counters and their effectiveness</li>
+                                    <li>Use the tactical tips to maximize your counter play</li>
+                                </ol>
+                            </div>
+                            <div class="col-md-6">
+                                <h4 class="support">Game Tracker</h4>
+                                <ol>
+                                    <li>Create an account or login to save your game data</li>
+                                    <li>After each match, enter the details including map, hero, and result</li>
+                                    <li>Record SR changes to track your competitive progress</li>
+                                    <li>View your stats to analyze performance patterns</li>
+                                    <li>Use insights to focus on your best heroes and maps</li>
+                                </ol>
+                            </div>
                         </div>
-                        {% endfor %}
                     </div>
                 </div>
             </div>
         </div>
     </div>
-    {% endif %}
-{% endblock %}
-
-{% block scripts %}
-<script>
-    // Hero search functionality
-    document.getElementById('heroSearch')?.addEventListener('input', function() {
-        const searchTerm = this.value.toLowerCase();
-        const heroes = document.querySelectorAll('.hero-item');
-        
-        heroes.forEach(hero => {
-            const heroName = hero.querySelector('.hero-name').textContent.toLowerCase();
-            if (heroName.includes(searchTerm)) {
-                hero.style.display = '';
-            } else {
-                hero.style.display = 'none';
-            }
-        });
-    });
-    
-    // Role filter functionality
-    document.querySelectorAll('.filter-btn')?.forEach(button => {
-        button.addEventListener('click', function() {
-            // Update active button
-            document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
-            this.classList.add('active');
-            
-            const role = this.getAttribute('data-role');
-            const heroes = document.querySelectorAll('.hero-item');
-            
-            heroes.forEach(hero => {
-                if (role === 'all' || hero.getAttribute('data-role') === role) {
-                    hero.style.display = '';
-                } else {
-                    hero.style.display = 'none';
-                }
-            });
-        });
-    });
-</script>
-
-<style>
-    /* Enhanced hover animations for hero cards */
-    .hero-card.enhanced-hover {
-        transition: transform 0.3s ease, box-shadow 0.3s ease;
-        position: relative;
-        overflow: hidden;
-    }
-    
-    .hero-card.enhanced-hover:hover {
-        transform: translateY(-8px) scale(1.05);
-    }
-    
-    /* Role-specific glow effects */
-    .tank-glow:hover {
-        box-shadow: 0 0 20px rgba(41, 128, 185, 0.8);
-    }
-    
-    .damage-glow:hover {
-        box-shadow: 0 0 20px rgba(192, 57, 43, 0.8);
-    }
-    
-    .support-glow:hover {
-        box-shadow: 0 0 20px rgba(39, 174, 96, 0.8);
-    }
-    
-    .unknown-glow:hover {
-        box-shadow: 0 0 20px rgba(149, 165, 166, 0.8);
-    }
-    
-    /* Subtle icon pulse on hover */
-    .hero-card.enhanced-hover:hover .hero-icon {
-        animation: iconPulse 1.5s infinite;
-    }
-    
-    @keyframes iconPulse {
-        0% { transform: scale(1); }
-        50% { transform: scale(1.08); }
-        100% { transform: scale(1); }
-    }
-    
-    /* Hero name highlight effect */
-    .hero-card.enhanced-hover .hero-name {
-        position: relative;
-        transition: color 0.3s ease;
-    }
-    
-    .hero-card.enhanced-hover:hover .hero-name {
-        color: #f99e1a;
-        text-shadow: 0 0 5px rgba(249, 158, 26, 0.5);
-    }
-</style>
+</div>
 {% endblock %}

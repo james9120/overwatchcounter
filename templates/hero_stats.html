@@ -1,0 +1,335 @@
+{% extends "base.html" %}
+
+{% block title %}{{ hero }} Stats - Overwatch{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header bg-transparent">
+                <div class="d-flex align-items-center">
+                    <img src="{{ get_hero_image_url(hero) }}" class="hero-icon me-3" alt="{{ hero }}">
+                    <div>
+                        <h3 class="mb-0" style="color: #f99e1a;">{{ hero }}</h3>
+                        <div class="role-badge {{ hero_role|lower }}-bg">{{ hero_role }}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                {% if stats and stats['games_played'] > 0 %}
+                <div class="row text-center mb-4">
+                    <div class="col-4">
+                        <div class="stat-circle win-circle">
+                            <span class="display-6">{{ stats['wins'] }}</span>
+                            <span class="small">Wins</span>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="stat-circle loss-circle">
+                            <span class="display-6">{{ stats['losses'] }}</span>
+                            <span class="small">Losses</span>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="stat-circle draw-circle">
+                            <span class="display-6">{{ stats['draws'] }}</span>
+                            <span class="small">Draws</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mb-4">
+                    <h5 class="mb-2">Win Rate</h5>
+                    <div class="effectiveness">
+                        {% if stats['games_played'] > 0 %}
+                            <div class="effectiveness-fill" style="width: {{ (stats['wins'] / stats['games_played'] * 100)|round|int }}%"></div>
+                        {% else %}
+                            <div class="effectiveness-fill" style="width: 0%"></div>
+                        {% endif %}
+                    </div>
+                    <div class="text-center mt-2">
+                        {% if stats['games_played'] > 0 %}
+                            <strong>{{ (stats['wins'] / stats['games_played'] * 100)|round|int }}%</strong> ({{ stats['wins'] }}/{{ stats['games_played'] }})
+                        {% else %}
+                            <strong>0%</strong> (0/0)
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="mb-4">
+                    <h5 class="mb-2">Average SR Change</h5>
+                    <div class="text-center">
+                        {% if stats['average_sr_change'] is not none %}
+                            <span class="sr-display {% if stats['average_sr_change'] > 0 %}text-success{% elif stats['average_sr_change'] < 0 %}text-danger{% else %}text-warning{% endif %}">
+                                {% if stats['average_sr_change'] > 0 %}+{% endif %}{{ stats['average_sr_change']|round(1) }}
+                            </span>
+                        {% else %}
+                            <span class="sr-display text-warning">0.0</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <p class="mb-1">No stats available for {{ hero }}.</p>
+                    <p>Play more games with this hero to see statistics.</p>
+                </div>
+                {% endif %}
+                
+                <div class="d-grid mt-4">
+                    <a href="{{ url_for('game_tracker') }}" class="btn btn-outline-light">Back to Tracker</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <div class="card-header bg-transparent">
+                <h3 class="text-center mb-0" style="color: #f99e1a;">Map Performance</h3>
+            </div>
+            <div class="card-body">
+                {% if map_stats and map_stats|length > 0 %}
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover">
+                        <thead>
+                            <tr>
+                                <th>Map</th>
+                                <th>Games</th>
+                                <th>Wins</th>
+                                <th>Win Rate</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for map in map_stats %}
+                            <tr>
+                                <td>{{ map['map'] }}</td>
+                                <td>{{ map['games_played'] }}</td>
+                                <td class="text-success">{{ map['wins'] }}</td>
+                                <td>
+                                    {% if map['games_played'] > 0 %}
+                                    <div class="effectiveness">
+                                        <div class="effectiveness-fill" style="width: {{ (map['wins'] / map['games_played'] * 100)|round|int }}%"></div>
+                                    </div>
+                                    <small>{{ (map['wins'] / map['games_played'] * 100)|round|int }}%</small>
+                                    {% else %}
+                                    <div class="effectiveness">
+                                        <div class="effectiveness-fill" style="width: 0%"></div>
+                                    </div>
+                                    <small>0%</small>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <p class="mb-1">No map data available for {{ hero }}.</p>
+                    <p>Play more games on different maps to see performance data.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header bg-transparent">
+                <h3 class="text-center mb-0" style="color: #f99e1a;">Recent Games</h3>
+            </div>
+            <div class="card-body">
+                {% if games and games|length > 0 %}
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Map</th>
+                                <th>Result</th>
+                                <th>SR</th>
+                                <th>Notes</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for game in games %}
+                            <tr>
+                                <td>{{ game['created_at']|replace('T', ' ')|truncate(16, true, '') }}</td>
+                                <td>{{ game['map'] }}</td>
+                                <td>
+                                    {% if game['result'] == 'win' %}
+                                    <span class="badge bg-success">Win</span>
+                                    {% elif game['result'] == 'loss' %}
+                                    <span class="badge bg-danger">Loss</span>
+                                    {% else %}
+                                    <span class="badge bg-warning text-dark">Draw</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if game['sr_change'] > 0 %}
+                                    <span class="text-success">+{{ game['sr_change'] }}</span>
+                                    {% elif game['sr_change'] < 0 %}
+                                    <span class="text-danger">{{ game['sr_change'] }}</span>
+                                    {% else %}
+                                    <span class="text-warning">0</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if game['notes'] %}
+                                    <button type="button" class="btn btn-sm btn-info" data-bs-toggle="tooltip" title="{{ game['notes'] }}">
+                                        <i class="bi bi-info-circle"></i>
+                                    </button>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <p class="mb-1">No games recorded with {{ hero }} yet.</p>
+                    <p>Add games with this hero to see your match history.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Enhanced styles for hero stats page */
+    .sr-display {
+        font-size: 2.5rem;
+        font-weight: bold;
+        display: block;
+        margin: 15px 0;
+    }
+    
+    .role-badge {
+        display: inline-block;
+        padding: 3px 8px;
+        border-radius: 4px;
+        color: white;
+        font-weight: bold;
+        font-size: 0.85rem;
+    }
+    
+    .tank-bg {
+        background-color: #2980b9;
+    }
+    
+    .damage-bg {
+        background-color: #c0392b;
+    }
+    
+    .support-bg {
+        background-color: #27ae60;
+    }
+    
+    /* Enhanced stat circles */
+    .stat-circle {
+        width: 90px;
+        height: 90px;
+        border-radius: 50%;
+        margin: 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        font-weight: bold;
+        box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    
+    .stat-circle:hover {
+        transform: scale(1.1);
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+    }
+    
+    .win-circle {
+        background-color: rgba(39, 174, 96, 0.2);
+        border: 3px solid #27ae60;
+        color: #27ae60;
+    }
+    
+    .loss-circle {
+        background-color: rgba(231, 76, 60, 0.2);
+        border: 3px solid #e74c3c;
+        color: #e74c3c;
+    }
+    
+    .draw-circle {
+        background-color: rgba(241, 196, 15, 0.2);
+        border: 3px solid #f1c40f;
+        color: #f1c40f;
+    }
+    
+    /* Enhanced effectiveness bar */
+    .effectiveness {
+        width: 100%;
+        height: 8px;
+        background-color: rgba(231, 76, 60, 0.3);
+        border-radius: 4px;
+        overflow: hidden;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) inset;
+    }
+    
+    .effectiveness-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #2ecc71, #27ae60);
+        border-radius: 4px;
+        position: relative;
+        transition: width 1s ease-out;
+    }
+    
+    /* Card enhancements */
+    .card {
+        overflow: hidden;
+        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
+    }
+    
+    .card-header {
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .card-header::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(135deg, rgba(249, 158, 26, 0.2) 0%, rgba(33, 143, 254, 0.2) 100%);
+        pointer-events: none;
+    }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize tooltips
+        const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        const tooltipList = tooltipTriggerList.map(function(tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+        
+        // Add animation to stat circles
+        const statCircles = document.querySelectorAll('.stat-circle');
+        statCircles.forEach((circle, index) => {
+            setTimeout(() => {
+                circle.style.opacity = '0';
+                circle.style.transform = 'scale(0.8)';
+                
+                setTimeout(() => {
+                    circle.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+                    circle.style.opacity = '1';
+                    circle.style.transform = 'scale(1)';
+                }, 50);
+            }, index * 100);
+        });
+    });
+</script>
+{% endblock %}

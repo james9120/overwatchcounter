@@ -1,17 +1,118 @@
 import os
 import pandas as pd
-from flask import Flask, request, render_template_string, render_template, redirect, url_for, jsonify, session
+from flask import Flask, request, render_template, redirect, url_for, jsonify, session, flash
+import sqlite3
+from datetime import datetime, timedelta
+from werkzeug.security import generate_password_hash, check_password_hash
+from functools import wraps
+import re
 
 # Initialize Flask app with static file handling
-# Make sure Flask knows exactly where to find templates
 app = Flask(__name__, 
             static_url_path='/static', 
             static_folder='static',
             template_folder=os.path.abspath('templates'))
 
-# Configure session for storing multi-enemy selection
-app.secret_key = os.urandom(24)  # Required for session management
+# Configure session for storing data
+app.secret_key = os.urandom(24)  # Required for session management (replace with a fixed key in production)
+app.permanent_session_lifetime = timedelta(days=31)  # Session lasts 31 days
 
+###########################################
+# COMMON FUNCTIONS AND HELPERS
+###########################################
+
+# Initialize database 
+def init_db():
+    conn = sqlite3.connect('overwatch_app.db')
+    c = conn.cursor()
+    
+    # Create users table for game tracker
+    c.execute('''
+    CREATE TABLE IF NOT EXISTS users (
+        user_id TEXT PRIMARY KEY,
+        password_hash TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_login TIMESTAMP,
+        is_active BOOLEAN DEFAULT 1
+    )
+    ''')
+    
+    # Create games table for game tracker
+    c.execute('''
+    CREATE TABLE IF NOT EXISTS games (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT,
+        map TEXT,
+        hero_played TEXT,
+        role TEXT,
+        result TEXT,
+        sr_change INTEGER,
+        enemy_team TEXT,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(user_id)
+    )
+    ''')
+    
+    # Create stats table for aggregated statistics
+    c.execute('''
+    CREATE TABLE IF NOT EXISTS hero_stats (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT,
+        hero TEXT,
+        role TEXT,
+        games_played INTEGER DEFAULT 0,
+        wins INTEGER DEFAULT 0,
+        losses INTEGER DEFAULT 0,
+        draws INTEGER DEFAULT 0,
+        average_sr_change REAL DEFAULT 0.0,
+        UNIQUE(user_id, hero),
+        FOREIGN KEY (user_id) REFERENCES users(user_id)
+    )
+    ''')
+    
+    conn.commit()
+    conn.close()
+
+# Login required decorator
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            flash('Please log in to access this page', 'error')
+            return redirect(url_for('game_tracker'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+# Heroes and maps data for game tracker
+def get_game_data():
+    hero_data = {
+        "Tank": [
+            "D.Va", "Doomfist", "Junker Queen", "Mauga", "Orisa", "Ramattra", 
+            "Reinhardt", "Roadhog", "Sigma", "Winston", "Wrecking Ball", "Zarya"
+        ],
+        "Damage": [
+            "Ashe", "Bastion", "Cassidy", "Echo", "Genji", "Hanzo", "Junkrat", "Mei", 
+            "Pharah", "Reaper", "Sojourn", "Soldier: 76", "Sombra", "Symmetra", 
+            "Torbjorn", "Tracer", "Venture", "Widowmaker"
+        ],
+        "Support": [
+            "Ana", "Baptiste", "Brigitte", "Illari", "Kiriko", "Lifeweaver", 
+            "Lucio", "Mercy", "Moira", "Zenyatta"
+        ]
+    }
+    
+    maps = [
+        "Ayutthaya", "Busan", "Colosseo", "Dorado", "Eichenwalde", "Esperança", 
+        "Gibraltar", "Havana", "Hollywood", "Ilios", "Junkertown", "King's Row", 
+        "Lijiang Tower", "Midtown", "Nepal", "New Queen Street", "Numbani", 
+        "Oasis", "Paraíso", "Rialto", "Route 66", "Samoa", "Shambali", "Suravasa", 
+        "Talantis", "Temple of Anubis", "Volskaya Industries"
+    ]
+    
+    return hero_data, maps
+
+# Load counter data from Excel for counter picker
 def load_counter_data():
     """
     Loads data from 'Overwatch Counters.xlsx'.
@@ -76,6 +177,8 @@ def normalize_hero_name(name):
         "Soldier: 76": "Soldier: 76",
         "Soldier:76": "Soldier: 76",
         "Soldier76": "Soldier: 76",
+        "Torb": "Torbjorn",
+        "Lucio": "Lucio",
         "Sniper/Flying": "Widowmaker",  # Best approximation for this general term
         "Brawl": "",  # This is a strategy, not a hero
         "Dive": ""    # This is a strategy, not a hero
@@ -83,8 +186,42 @@ def normalize_hero_name(name):
     # Return the mapped name if exists; otherwise, return the original name
     return mapping.get(name.strip(), name.strip())
 
+# Get hero role
+def get_hero_role(hero, hero_data):
+    for role, heroes in hero_data.items():
+        if hero in heroes:
+            return role
+    return "Unknown"
+
+# Generate a hero image path - works for both counter picker and game tracker
+def get_hero_image_url(hero_name):
+    """Generate a hero image path - works for both counter picker and game tracker"""
+    # Format the hero name for the filename
+    if hero_name == "Soldier: 76":
+        filename = "Soldier_76"
+    elif hero_name == "D.Va":
+        filename = "DVa"
+    else:
+        # Replace spaces with underscores, remove periods
+        filename = hero_name.replace(' ', '_').replace('.', '')
+    
+    # Add the "Icon-" prefix
+    filename = f"Icon-{filename}"
+    
+    # Get hero role to use in path
+    hero_data, _ = get_game_data()
+    role = "unknown"
+    
+    for r, heroes in hero_data.items():
+        if hero_name in heroes:
+            role = r.lower()
+            break
+            
+    # Return the URL path
+    return f"/static/images/heroes/{role}/{filename}.webp"
+
 # Get difficulty ratings for matchups (1-5 scale, where 5 is very effective)
-def get_counter_difficulty(counter, enemy):
+def get_counter_difficulty(counter, enemy, counterData=None):
     # Make sure we don't compare a hero against itself
     if counter == enemy:
         return 1  # A hero is never a good counter to itself
@@ -161,256 +298,258 @@ def get_counter_difficulty(counter, enemy):
     if counter in effectiveness_data and enemy in effectiveness_data[counter]:
         return effectiveness_data[counter][enemy]
     
-    # If no specific rating exists, we'll use role-based effectiveness
-    # Get the roles of both heroes if available
-    counter_role = counterData.get(counter, {}).get("Role", "Unknown")
-    enemy_role = counterData.get(enemy, {}).get("Role", "Unknown")
-    
-    # These coefficients represent how effective each role is against others in general
-    role_effectiveness = {
-        "Tank": {"Tank": 3, "Damage": 2, "Support": 3},
-        "Damage": {"Tank": 3, "Damage": 3, "Support": 4},
-        "Support": {"Tank": 2, "Damage": 2, "Support": 3}
-    }
-    
-    # If we have both roles, use the role effectiveness matrix
-    if counter_role in role_effectiveness and enemy_role in role_effectiveness[counter_role]:
-        base_effectiveness = role_effectiveness[counter_role][enemy_role]
+    # If no specific rating exists, use role-based effectiveness
+    # Check if we have counter data to get roles
+    if counterData:
+        # Get the roles of both heroes if available
+        counter_role = counterData.get(counter, {}).get("Role", "Unknown")
+        enemy_role = counterData.get(enemy, {}).get("Role", "Unknown")
         
-        # Further adjust based on hero archetypes
-        # Tanks
-        if counter in ["Roadhog", "Zarya", "D.Va"] and enemy_role == "Damage":
-            base_effectiveness += 1
-        elif counter in ["Winston", "D.Va", "Wrecking Ball"] and enemy in ["Widowmaker", "Ashe", "Hanzo", "Venture"]:
-            base_effectiveness += 1
-        elif counter in ["Reinhardt", "Orisa", "Sigma"] and enemy in ["Junkrat", "Pharah", "Echo"]:
-            base_effectiveness -= 1
-            
-        # Damage
-        if counter in ["Widowmaker", "Ashe", "Soldier: 76", "Sojourn", "Venture"] and enemy in ["Pharah", "Echo", "Mercy"]:
-            base_effectiveness += 1
-        elif counter in ["Reaper", "Mei", "Symmetra"] and enemy_role == "Tank":
-            base_effectiveness += 1
-        elif counter in ["Genji", "Tracer", "Sombra"] and enemy_role == "Support":
-            base_effectiveness += 1
-            
-        # Support
-        if counter in ["Ana", "Illari"] and enemy in ["Roadhog", "Winston", "Wrecking Ball"]:
-            base_effectiveness += 1
-        elif counter in ["Brigitte", "Moira"] and enemy in ["Genji", "Tracer"]:
-            base_effectiveness += 1
-            
-        # Ensure we stay within 1-5 range
-        return max(1, min(5, base_effectiveness))
+        # These coefficients represent how effective each role is against others in general
+        role_effectiveness = {
+            "Tank": {"Tank": 3, "Damage": 2, "Support": 3},
+            "Damage": {"Tank": 3, "Damage": 3, "Support": 4},
+            "Support": {"Tank": 2, "Damage": 2, "Support": 3}
+        }
+        
+        # If we have both roles, use the role effectiveness matrix
+        if counter_role in role_effectiveness and enemy_role in role_effectiveness[counter_role]:
+            return role_effectiveness[counter_role][enemy_role]
     
     # Default to medium effectiveness if all else fails
     return 3
 
-# Calculate team counter score
-def get_team_counter_score(counter_hero, enemy_heroes):
-    """Calculate how effective a hero is against multiple enemies"""
-    total_score = 0
-    for enemy in enemy_heroes:
-        total_score += get_counter_difficulty(counter_hero, enemy)
-    # Return average score
-    return total_score / len(enemy_heroes)
-
-# Hero image URLs - updated to use local icon files with .webp extension and proper spacing handling
-def get_hero_image_url(hero_name):
-    # Get the hero role to use the appropriate subfolder
-    role = "unknown"
-    if hero_name in counterData:
-        role = counterData[hero_name]["Role"].lower()
-    
-    # Format the hero name for the filename (maintaining the user's naming convention)
-    if hero_name == "Soldier: 76":
-        filename = "Icon-Soldier_76"
-    else:
-        # Replace spaces with underscores, and remove colons and periods
-        filename = f"Icon-{hero_name.replace(' ', '_').replace(':', '').replace('.', '')}"
-    
-    # Full path to the hero icon using .webp extension
-    return f"/static/images/heroes/{role}/{filename}.webp"
-
-# Hero difficulty ratings (1-3 scale)
-# 1 = Easy: Simple mechanics, forgiving gameplay, good for beginners
-# 2 = Medium: Requires some game knowledge and mechanical skill
-# 3 = Hard: Complex mechanics, high skill ceiling, requires significant practice
-hero_difficulty = {
-    # Tanks
-    "D.Va": 2,
-    "Doomfist": 3,
-    "Junker Queen": 2,
-    "Mauga": 1,
-    "Orisa": 1,
-    "Ramattra": 2,
-    "Reinhardt": 1,
-    "Roadhog": 1,
-    "Sigma": 2,
-    "Winston": 2,
-    "Wrecking Ball": 3,
-    "Zarya": 2,
-    
-    # Damage
-    "Ashe": 2,
-    "Bastion": 1,
-    "Cassidy": 2,
-    "Echo": 3,
-    "Genji": 3,
-    "Hanzo": 3,
-    "Junkrat": 1,
-    "Mei": 2,
-    "Pharah": 2,
-    "Reaper": 1,
-    "Sojourn": 2,
-    "Soldier: 76": 1,
-    "Sombra": 3,
-    "Symmetra": 1,
-    "Torbjörn": 1,
-    "Tracer": 3,
-    "Venture": 3,
-    "Widowmaker": 3,
-    
-    # Support
-    "Ana": 3,
-    "Baptiste": 2,
-    "Brigitte": 1,
-    "Illari": 2,
-    "Kiriko": 3,
-    "Lifeweaver": 3,
-    "Lucio": 2,
-    "Mercy": 1,
-    "Moira": 1,
-    "Zenyatta": 2
-}
-
-# Descriptive labels for difficulty levels
-difficulty_labels = {
-    1: "Easy",
-    2: "Medium",
-    3: "Hard"
-}
-
-# ------------------------------------------------------------------
-# HERO SUMMARIES: Tactical tips for each recommended counter hero.
-# All keys now use consistent naming.
-# ------------------------------------------------------------------
-heroSummaries = {
-    "D.Va": "Use Defense Matrix for critical projectiles and ultimates. Dive with Boosters and follow up with Micro Missiles for burst damage. Time Self-Destruct for area denial, and watch out for beam heroes.",
-    "Doomfist": "Engage with melee combos and use Power Block to absorb damage. Time your Charge to secure kills, but avoid heavy crowd-control.",
-    "Junker Queen": "Pull enemies in with your blade and follow up with Carnage. Use Commanding Shout to boost your team and sustain in close brawls.",
-    "Mauga": "Exploit your aggressive kit to pressure foes; use mobility to dodge key attacks, but mind long-range poke.",
-    "Orisa": "Leverage your Barrier Shield and Energy Javelin to control space. Use Javelin Spin to close gaps and disrupt enemy formations.",
-    "Ramattra": "Switch between ranged staff and melee Nemesis form to adapt. Use Ravenous Vortex to slow and pull enemies into your burst.",
-    "Reinhardt": "Use your Barrier Shield to protect allies and close in with Fire Strike and Charge. Time Earthshatter to stun multiple foes.",
-    "Roadhog": "Hook isolated targets and follow up with your Scrap Gun for instant kills. Use Take a Breather wisely to sustain without overextending.",
-    "Sigma": "Deploy your Experimental Barrier and Kinetic Grasp to absorb damage. Use Accretion to stun and Hyperspheres for steady DPS.",
-    "Winston": "Leap into enemy lines with Jump Pack and use Tesla Cannon for multi-target damage. Barrier Projector helps protect your team during dives.",
-    "Wrecking Ball": "Grapple to build momentum and disrupt enemy formations. Use adaptive shields and Piledriver for burst damage.",
-    "Zarya": "Charge energy with Particle Barriers and Projected Barriers, then unleash a powerful beam. Timing your barriers is key to survival.",
-    "Ashe": "Aim for headshots with your Viper rifle and use Dynamite to burst clusters. Coach Gun offers mobility—use it to reposition after a pick.",
-    "Bastion": "Toggle between turret mode for massive DPS and mobile mode to reposition. Use your grenade to finish off low-health targets.",
-    "Cassidy": "Land precise headshots with your Peacekeeper and combo with Magnetic Grenade for burst damage. Roll to reload and reposition swiftly.",
-    "Echo": "Combo Sticky Bombs with Focusing Beam for high burst; use flight to outmaneuver opponents. Duplicate smartly to adapt to fights.",
-    "Genji": "Utilize shurikens and Swift Strike for burst combos, and deflect enemy fire to turn damage back at them. Dragonblade can wipe foes if timed well.",
-    "Hanzo": "Aim for headshots with Storm Bow and use Sonic Arrow to reveal enemy positions. Dragonstrike zones and forces enemies out of cover.",
-    "Junkrat": "Spam grenades for area denial and use Concussion Mine for burst damage and repositioning. Mine jumps add unexpected mobility.",
-    "Mei": "Slow enemies with your Endothermic Blaster and block advances with Ice Wall. Cryo-Freeze lets you reset health in critical moments.",
-    "Pharah": "Stay airborne to rain down rockets and use Concussive Blast to reposition. Focus on aerial pickoffs while staying out of hitscan range.",
-    "Reaper": "Close in for heavy shotgun burst and lifesteal, but use Wraith Form to escape danger. Flank key targets for high-value picks.",
-    "Sojourn": "Charge your railgun for lethal bursts and use Power Slide for agile repositioning. Disrupt enemies with Disruptor Shot and Overclock for multi-kills.",
-    "Soldier: 76": "Leverage your Heavy Pulse Rifle for consistent hitscan damage and use Helix Rockets for burst. Deploy Biotic Field to sustain yourself and your team, and use Sprint to reposition quickly.",
-    "Sombra": "Hack priority targets to disable abilities and use stealth for backline infiltration. Translocate quickly to escape or reposition.",
-    "Symmetra": "Charge your beam for high DPS in close quarters and deploy turrets to control space. Use Teleporter for rapid repositioning.",
-    "Torbjörn": "Deploy your turret strategically and use Overload for increased damage. Molten Core zones enemy advances effectively.",
-    "Tracer": "Exploit rapid blinks and Recall to pick off isolated squishies. Use Pulse Bomb for high burst and stay unpredictable.",
-    "Venture": "Use grappling and climbing to maintain high ground advantage. Deploy Stalker Mines tactically and charge the rail gun for high damage precision shots.",
-    "Widowmaker": "Set up on high ground to land critical headshots and use Grappling Hook to reposition quickly. Venom Mine deters enemy flankers.",
-    "Ana": "Use Biotic Grenade to disable enemy healing and Sleep Dart to neutralize high-priority targets. Aim for headshots to maximize burst.",
-    "Baptiste": "Utilize Immortality Field to protect your team and Amplification Matrix to boost damage output. Position well for sustained fights.",
-    "Brigitte": "Use Shield Bash and Whip Shot to stun enemies while inspiring allies with healing. Peel off divers to keep your team safe.",
-    "Illari": "Position Solar Shrine in protected locations with good team coverage. Balance DPS and healing based on team needs. Use high ground to maximize projectile effectiveness. Save Captive Sun for finishing low-health targets or area denial.",
-    "Kiriko": "Teleport swiftly and cleanse harmful effects with Suzu. Use precise aim and mobility to support your team in high-pressure moments.",
-    "Lifeweaver": "Focus on efficient healing and smart crowd control. Position centrally to maximize your supportive impact while disrupting enemy dives.",
-    "Lucio": "Switch between speed boost and healing aura to control the pace of battle. Use sound barriers to block enemy ultimates and aid repositioning.",
-    "Mercy": "Deliver high single-target healing and damage boosts. Use Guardian Angel to reposition swiftly and keep your team in the fight.",
-    "Moira": "Blend healing with damage by using Biotic Orbs effectively, and use Fade to dodge CC. Balance your dual role to sustain and pressure enemies.",
-    "Zenyatta": "Apply Orb of Discord to amplify damage on targets and dish consistent DPS with Orb of Destruction. Provide clutch Transcendence when needed."
-}
-
-# Load the counter data
-try:
-    counterData, enemy_characters, heroes_by_role = load_counter_data()
-except FileNotFoundError as e:
-    print(f"Error: {e}")
-    print("Please create the Excel file with the required columns.")
-    # Initialize with empty data
-    counterData = {}
-    enemy_characters = []
-    heroes_by_role = {"Tank": [], "Damage": [], "Support": [], "Unknown": []}
-    
-    # If file not found, add sample data for demonstration
-    # Sample data for testing without Excel file
-    counterData = {
-        "Widowmaker": {
-            "Role": "Damage",
-            "Tank": "Winston, D.Va, Wrecking Ball",
-            "Damage": "Genji, Tracer, Sombra",
-            "Support": "Kiriko",
-            "Weaknesses": "Dive heroes, shields, and close-range engagements"
-        },
-        "Mercy": {
-            "Role": "Support",
-            "Tank": "Winston, D.Va",
-            "Damage": "Sombra, Tracer, Widowmaker",
-            "Support": "Ana, Kiriko",
-            "Weaknesses": "Focus fire, anti-heal, and no escape route"
-        },
-        "Reinhardt": {
-            "Role": "Tank",
-            "Tank": "Orisa, Zarya",
-            "Damage": "Reaper, Junkrat, Pharah",
-            "Support": "Ana, Zenyatta",
-            "Weaknesses": "Crowd control, aerial heroes, and focused fire"
-        }
+# Hero summaries for tips
+def get_hero_summaries():
+    return {
+        "D.Va": "Use Defense Matrix for critical projectiles and ultimates. Dive with Boosters and follow up with Micro Missiles for burst damage.",
+        "Doomfist": "Engage with melee combos and use Power Block to absorb damage. Time your Charge to secure kills.",
+        "Junker Queen": "Pull enemies in with your blade and follow up with Carnage. Use Commanding Shout to boost your team.",
+        "Mauga": "Exploit your aggressive kit to pressure foes; use mobility to dodge key attacks, but mind long-range poke.",
+        "Orisa": "Leverage your Barrier Shield and Energy Javelin to control space. Use Javelin Spin to close gaps.",
+        "Ramattra": "Switch between ranged staff and melee Nemesis form to adapt. Use Ravenous Vortex to slow and pull enemies.",
+        "Reinhardt": "Use your Barrier Shield to protect allies and close in with Fire Strike and Charge. Time Earthshatter to stun multiple foes.",
+        "Roadhog": "Hook isolated targets and follow up with your Scrap Gun for instant kills. Use Take a Breather wisely.",
+        "Sigma": "Deploy your Experimental Barrier and Kinetic Grasp to absorb damage. Use Accretion to stun and Hyperspheres for steady DPS.",
+        "Winston": "Leap into enemy lines with Jump Pack and use Tesla Cannon for multi-target damage. Barrier Projector helps protect your team.",
+        "Wrecking Ball": "Grapple to build momentum and disrupt enemy formations. Use adaptive shields and Piledriver for burst damage.",
+        "Zarya": "Charge energy with Particle Barriers and Projected Barriers, then unleash a powerful beam. Timing your barriers is key.",
+        "Ashe": "Aim for headshots with your Viper rifle and use Dynamite to burst clusters. Coach Gun offers mobility.",
+        "Bastion": "Toggle between turret mode for massive DPS and mobile mode to reposition. Use your grenade to finish off targets.",
+        "Cassidy": "Land precise headshots with your Peacekeeper and combo with Magnetic Grenade for burst damage. Roll to reload and reposition.",
+        "Echo": "Combo Sticky Bombs with Focusing Beam for high burst; use flight to outmaneuver opponents. Duplicate smartly to adapt.",
+        "Genji": "Utilize shurikens and Swift Strike for burst combos, and deflect enemy fire to turn damage back at them.",
+        "Hanzo": "Aim for headshots with Storm Bow and use Sonic Arrow to reveal enemy positions. Dragonstrike zones and forces enemies out of cover.",
+        "Junkrat": "Spam grenades for area denial and use Concussion Mine for burst damage and repositioning. Mine jumps add unexpected mobility.",
+        "Mei": "Slow enemies with your Endothermic Blaster and block advances with Ice Wall. Cryo-Freeze lets you reset health in critical moments.",
+        "Pharah": "Stay airborne to rain down rockets and use Concussive Blast to reposition. Focus on aerial pickoffs while staying out of hitscan range.",
+        "Reaper": "Close in for heavy shotgun burst and lifesteal, but use Wraith Form to escape danger. Flank key targets for high-value picks.",
+        "Sojourn": "Charge your railgun for lethal bursts and use Power Slide for agile repositioning. Disrupt enemies with Disruptor Shot.",
+        "Soldier: 76": "Leverage your Heavy Pulse Rifle for consistent hitscan damage and use Helix Rockets for burst. Deploy Biotic Field to sustain.",
+        "Sombra": "Hack priority targets to disable abilities and use stealth for backline infiltration. Translocate quickly to escape or reposition.",
+        "Symmetra": "Charge your beam for high DPS in close quarters and deploy turrets to control space. Use Teleporter for rapid repositioning.",
+        "Torbjörn": "Deploy your turret strategically and use Overload for increased damage. Molten Core zones enemy advances effectively.",
+        "Tracer": "Exploit rapid blinks and Recall to pick off isolated squishies. Use Pulse Bomb for high burst and stay unpredictable.",
+        "Venture": "Use grappling and climbing to maintain high ground advantage. Deploy Stalker Mines tactically and charge the rail gun for precision shots.",
+        "Widowmaker": "Set up on high ground to land critical headshots and use Grappling Hook to reposition quickly. Venom Mine deters enemy flankers.",
+        "Ana": "Use Biotic Grenade to disable enemy healing and Sleep Dart to neutralize high-priority targets. Aim for headshots to maximize burst.",
+        "Baptiste": "Utilize Immortality Field to protect your team and Amplification Matrix to boost damage output. Position well for sustained fights.",
+        "Brigitte": "Use Shield Bash and Whip Shot to stun enemies while inspiring allies with healing. Peel off divers to keep your team safe.",
+        "Illari": "Position Solar Shrine in protected locations with good team coverage. Balance DPS and healing based on team needs.",
+        "Kiriko": "Teleport swiftly and cleanse harmful effects with Suzu. Use precise aim and mobility to support your team in high-pressure moments.",
+        "Lifeweaver": "Focus on efficient healing and smart crowd control. Position centrally to maximize your supportive impact.",
+        "Lúcio": "Switch between speed boost and healing aura to control the pace of battle. Use sound barriers to block enemy ultimates.",
+        "Mercy": "Deliver high single-target healing and damage boosts. Use Guardian Angel to reposition swiftly and keep your team in the fight.",
+        "Moira": "Blend healing with damage by using Biotic Orbs effectively, and use Fade to dodge CC. Balance your dual role to sustain and pressure enemies.",
+        "Zenyatta": "Apply Orb of Discord to amplify damage on targets and dish consistent DPS with Orb of Destruction. Provide clutch Transcendence when needed."
     }
-    enemy_characters = list(counterData.keys())
-    # Update role lists
-    for hero, data in counterData.items():
-        role = data["Role"]
-        if role in heroes_by_role:
-            heroes_by_role[role].append(hero)
 
-# ------------------------------------------------------------------
-# FLASK ROUTES
-# ------------------------------------------------------------------
+# Hero difficulty data
+def get_hero_difficulty():
+    return {
+        # Tanks
+        "D.Va": 2,
+        "Doomfist": 3,
+        "Junker Queen": 2,
+        "Mauga": 1,
+        "Orisa": 1,
+        "Ramattra": 2,
+        "Reinhardt": 1,
+        "Roadhog": 1,
+        "Sigma": 2,
+        "Winston": 2,
+        "Wrecking Ball": 3,
+        "Zarya": 2,
+        
+        # Damage
+        "Ashe": 2,
+        "Bastion": 1,
+        "Cassidy": 2,
+        "Echo": 3,
+        "Genji": 3,
+        "Hanzo": 3,
+        "Junkrat": 1,
+        "Mei": 2,
+        "Pharah": 2,
+        "Reaper": 1,
+        "Sojourn": 2,
+        "Soldier: 76": 1,
+        "Sombra": 3,
+        "Symmetra": 1,
+        "Torbjörn": 1,
+        "Tracer": 3,
+        "Venture": 3,
+        "Widowmaker": 3,
+        
+        # Support
+        "Ana": 3,
+        "Baptiste": 2,
+        "Brigitte": 1,
+        "Illari": 2,
+        "Kiriko": 3,
+        "Lifeweaver": 3,
+        "Lúcio": 2,
+        "Mercy": 1,
+        "Moira": 1,
+        "Zenyatta": 2
+    }
+
+###########################################
+# ROUTES FOR BOTH APPLICATIONS
+###########################################
+
+# Home page - serves as a landing for both apps
 @app.route('/')
+def index():
+    """Main landing page"""
+    return render_template('index.html',
+                         logged_in=session.get('logged_in', False),
+                         user_id=session.get('user_id', None))
+
+# Authentication and user management routes
+@app.route('/set_user_id', methods=['POST'])
+def set_user_id():
+    """Register a new user or login an existing user"""
+    user_id = request.form.get('user_id')
+    password = request.form.get('password')
+    
+    if not user_id or not password:
+        flash('User ID and password are required', 'error')
+        return redirect(url_for('game_tracker'))
+    
+    conn = sqlite3.connect('overwatch_app.db')
+    c = conn.cursor()
+    
+    # Check if user exists
+    c.execute('SELECT password_hash FROM users WHERE user_id = ?', (user_id,))
+    user = c.fetchone()
+    
+    if request.form.get('action') == 'register':
+        if user:
+            conn.close()
+            flash('User ID already exists', 'error')
+            return redirect(url_for('game_tracker'))
+            
+        # Hash the password and create new user
+        password_hash = generate_password_hash(password)
+        c.execute('INSERT INTO users (user_id, password_hash) VALUES (?, ?)',
+                 (user_id, password_hash))
+        conn.commit()
+        flash('Registration successful!', 'success')
+        
+    else:  # Login
+        if not user or not check_password_hash(user[0], password):
+            conn.close()
+            flash('Invalid user ID or password', 'error')
+            return redirect(url_for('game_tracker'))
+            
+        # Update last login time
+        c.execute('UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE user_id = ?',
+                 (user_id,))
+        conn.commit()
+        flash('Login successful!', 'success')
+    
+    conn.close()
+    
+    # Set up session
+    session.permanent = True
+    session['user_id'] = user_id
+    session['logged_in'] = True
+    
+    return redirect(url_for('game_tracker'))
+
+@app.route('/logout')
+def logout():
+    """Log out the current user"""
+    session.clear()
+    flash('You have been logged out', 'success')
+    return redirect(url_for('game_tracker'))
+
+###########################################
+# COUNTER PICKER ROUTES
+###########################################
+
+@app.route('/counter')
 def enemy_selection():
-    hero_roles = {hero: counterData[hero]["Role"] for hero in enemy_characters}
-    return render_template('index.html', 
-        enemies=enemy_characters, 
-        hero_roles=hero_roles,
-        hero_image_url=get_hero_image_url
-    )
+    """Counter picker homepage"""
+    try:
+        # Load counter data
+        counterData, enemy_characters, heroes_by_role = load_counter_data()
+        hero_roles = {hero: counterData[hero]["Role"] for hero in enemy_characters}
+        
+        return render_template('counter_index.html',
+            enemies=enemy_characters, 
+            hero_roles=hero_roles,
+            hero_image_url=get_hero_image_url,
+            logged_in=session.get('logged_in', False),
+            user_id=session.get('user_id', None)
+        )
+    except Exception as e:
+        flash(f'Error loading counter data: {str(e)}', 'error')
+        return redirect(url_for('index'))
 
 @app.route('/multi_enemy')
 def multi_enemy_selection():
-    hero_roles = {hero: counterData[hero]["Role"] for hero in enemy_characters}
-    return render_template('multi_enemy.html', 
-        enemies=enemy_characters, 
-        hero_roles=hero_roles,
-        hero_image_url=get_hero_image_url
-    )
+    """Multi-enemy counter picker page"""
+    try:
+        # Load counter data
+        counterData, enemy_characters, heroes_by_role = load_counter_data()
+        hero_roles = {hero: counterData[hero]["Role"] for hero in enemy_characters}
+        
+        return render_template('multi_enemy.html', 
+            enemies=enemy_characters, 
+            hero_roles=hero_roles,
+            hero_image_url=get_hero_image_url,
+            logged_in=session.get('logged_in', False),
+            user_id=session.get('user_id', None)
+        )
+    except Exception as e:
+        flash(f'Error loading counter data: {str(e)}', 'error')
+        return redirect(url_for('index'))
 
 @app.route('/select_class')
 def select_class():
+    """Class selection for counter picking"""
     enemy = request.args.get('enemy')
-    if enemy not in counterData:
-        return "Invalid enemy hero selected!", 400
-    return render_template('select_role.html', enemy=enemy)
+    
+    try:
+        counterData, _, _ = load_counter_data()
+        
+        if enemy not in counterData:
+            flash('Invalid enemy hero selected!', 'error')
+            return redirect(url_for('enemy_selection'))
+            
+        return render_template('select_role.html', 
+                              enemy=enemy,
+                              logged_in=session.get('logged_in', False),
+                              user_id=session.get('user_id', None))
+    except Exception as e:
+        flash(f'Error loading hero data: {str(e)}', 'error')
+        return redirect(url_for('enemy_selection'))
 
 @app.route('/select_class_multi')
 def select_class_multi():
+    """Class selection for multi-enemy counter picking"""
     enemies = request.args.get('enemies', '').split(',')
     if not enemies or enemies[0] == '':
         return redirect(url_for('multi_enemy_selection'))
@@ -418,181 +557,456 @@ def select_class_multi():
     # Store enemies in session for later use
     session['selected_enemies'] = enemies
     
-    return render_template('select_role_multi.html', enemies=enemies, 
-                          hero_image_url=get_hero_image_url)
+    return render_template('select_role_multi.html', 
+                          enemies=enemies, 
+                          hero_image_url=get_hero_image_url,
+                          logged_in=session.get('logged_in', False),
+                          user_id=session.get('user_id', None))
 
 @app.route('/show_counters')
 def show_counters():
+    """Show counter recommendations for single enemy"""
     enemy = request.args.get('enemy')
-    user_role = request.args.get('role')
+    role = request.args.get('role')
     
-    if enemy not in counterData:
-        return "Invalid enemy hero!", 400
-    if user_role not in ["Tank", "Damage", "Support"]:
-        return "Invalid role selected!", 400
+    if not enemy or not role:
+        flash("Missing parameters!", 'error')
+        return redirect(url_for('enemy_selection'))
+    
+    try:
+        counterData, _, _ = load_counter_data()
+        
+        if enemy not in counterData:
+            flash("Invalid enemy hero!", 'error')
+            return redirect(url_for('enemy_selection'))
+            
+        if role not in ["Tank", "Damage", "Support"]:
+            flash("Invalid role selected!", 'error')
+            return redirect(url_for('select_class', enemy=enemy))
 
-    # Get recommended counter heroes and weaknesses from the data
-    counters_for_role = counterData[enemy][user_role]
-    weaknesses = counterData[enemy]["Weaknesses"]
+        # Get recommended counter heroes and weaknesses from the data
+        counters_for_role = counterData[enemy][role]
+        weaknesses = counterData[enemy]["Weaknesses"]
 
-    # Parse and normalize all recommended counter heroes (assumed comma-separated)
-    counters_list = [normalize_hero_name(counter.strip()) for counter in counters_for_role.split(",") if counter.strip()]
-    counters_list = [c for c in counters_list if c]  # Remove empty strings (from strategy terms like "Brawl", "Dive")
-    
-    # Get effectiveness ratings for each counter
-    effectiveness = {counter: get_counter_difficulty(counter, enemy) for counter in counters_list}
-    
-    # Get hero tips
-    hero_tips = {counter: heroSummaries.get(counter, "No additional tips available for " + counter) for counter in counters_list}
-    
-    # Get hero synergies - removed to simplify
-    
-    # Get hero difficulty ratings
-    difficulties = {counter: hero_difficulty.get(counter, 2) for counter in counters_list}  # Default to medium if not found
-    difficulty_text = {counter: difficulty_labels.get(difficulties[counter], "Medium") for counter in counters_list}
-    
-    # Find beginner-friendly recommendations (effective AND easy to play)
-    beginner_friendly = [counter for counter in counters_list if effectiveness[counter] >= 4 and difficulties[counter] == 1]
+        # Parse and normalize all recommended counter heroes
+        counters_list = [normalize_hero_name(counter.strip()) for counter in counters_for_role.split(",") if counter.strip()]
+        counters_list = [c for c in counters_list if c]  # Remove empty strings
+        
+        # Get effectiveness ratings for each counter
+        effectiveness = {counter: get_counter_difficulty(counter, enemy, counterData) for counter in counters_list}
+        
+        # Get hero tips
+        hero_summaries = get_hero_summaries()
+        hero_tips = {counter: hero_summaries.get(counter, f"Use {counter}'s abilities to counter {enemy}'s strengths.") for counter in counters_list}
+        
+        # Get hero difficulty ratings
+        hero_difficulty = get_hero_difficulty()
+        difficulties = {counter: hero_difficulty.get(counter, 2) for counter in counters_list}  # Default to medium if not found
+        difficulty_text = {counter: ["Easy", "Medium", "Hard"][difficulties[counter]-1] for counter in counters_list}
+        
+        # Find beginner-friendly recommendations (easy heroes with high effectiveness)
+        beginner_friendly = [counter for counter in counters_list 
+                            if difficulties.get(counter, 2) == 1 and effectiveness.get(counter, 0) >= 4]
 
-    return render_template('counters.html',
-        enemy=enemy,
-        user_role=user_role,
-        counters_list=counters_list,
-        weaknesses=weaknesses,
-        effectiveness=effectiveness,
-        hero_tips=hero_tips,
-        difficulties=difficulties,
-        difficulty_text=difficulty_text,
-        beginner_friendly=beginner_friendly,
-        hero_difficulty=hero_difficulty,
-        difficulty_labels=difficulty_labels,
-        hero_image_url=get_hero_image_url
-    )
+        return render_template('counters.html',
+            enemy=enemy,
+            user_role=role,
+            counters_list=counters_list,
+            weaknesses=weaknesses,
+            effectiveness=effectiveness,
+            hero_tips=hero_tips,
+            difficulties=difficulties,
+            difficulty_text=difficulty_text,
+            beginner_friendly=beginner_friendly,
+            hero_difficulty=hero_difficulty,
+            difficulty_labels={1: "Easy", 2: "Medium", 3: "Hard"},
+            hero_image_url=get_hero_image_url,
+            logged_in=session.get('logged_in', False),
+            user_id=session.get('user_id', None)
+        )
+        
+    except Exception as e:
+        flash(f'Error loading counter data: {str(e)}', 'error')
+        return redirect(url_for('enemy_selection'))
 
 @app.route('/show_multi_counters')
 def show_multi_counters():
+    """Show counter recommendations for multiple enemies"""
     enemies = session.get('selected_enemies', [])
-    user_role = request.args.get('role')
+    role = request.args.get('role')
     
-    if not enemies or user_role not in ["Tank", "Damage", "Support"]:
+    if not enemies or role not in ["Tank", "Damage", "Support"]:
+        flash("Invalid selection. Please try again.", 'error')
         return redirect(url_for('multi_enemy_selection'))
 
-    # Get all heroes in the selected role
-    role_heroes = heroes_by_role[user_role]
-    
-    # Calculate effectiveness against the enemy team
-    counter_scores = {}
-    individual_scores = {}
-    
-    for hero in role_heroes:
-        counter_scores[hero] = 0
-        individual_scores[hero] = {}
+    try:
+        counterData, _, heroes_by_role = load_counter_data()
         
-        for enemy in enemies:
-            score = get_counter_difficulty(hero, enemy)
-            counter_scores[hero] += score
-            individual_scores[hero][enemy] = score
+        # Get all heroes in the selected role
+        role_heroes = heroes_by_role[role]
+        
+        # Calculate effectiveness against the enemy team
+        counter_scores = {}
+        individual_scores = {}
+        
+        for hero in role_heroes:
+            counter_scores[hero] = 0
+            individual_scores[hero] = {}
             
-        # Average the score
-        if len(enemies) > 0:
-            counter_scores[hero] /= len(enemies)
-    
-    # Sort by effectiveness
-    sorted_counters = sorted(counter_scores.items(), key=lambda x: x[1], reverse=True)
-    top_counters = [hero for hero, score in sorted_counters[:5]]  # Top 5 counters
-    
-    # Get weaknesses for all enemies
-    all_weaknesses = {enemy: counterData.get(enemy, {}).get("Weaknesses", "") for enemy in enemies}
-    
-    # Get hero tips and difficulties
-    hero_tips = {counter: heroSummaries.get(counter, "No tips available") for counter in top_counters}
-    difficulties = {counter: hero_difficulty.get(counter, 2) for counter in top_counters}
-    difficulty_text = {counter: difficulty_labels.get(difficulties[counter], "Medium") for counter in top_counters}
-    
-    # Find beginner-friendly recommendations
-    beginner_friendly = [counter for counter in top_counters if counter_scores[counter] >= 3.5 and difficulties[counter] == 1]
+            for enemy in enemies:
+                if enemy in counterData:  # Make sure the enemy exists in our data
+                    score = get_counter_difficulty(hero, enemy, counterData)
+                    counter_scores[hero] += score
+                    individual_scores[hero][enemy] = score
+                
+            # Average the score
+            if len(enemies) > 0:
+                counter_scores[hero] /= len(enemies)
+        
+        # Sort by effectiveness
+        sorted_counters = sorted(counter_scores.items(), key=lambda x: x[1], reverse=True)
+        top_counters = [hero for hero, score in sorted_counters[:5]]  # Top 5 counters
+        
+        # Get weaknesses for all enemies
+        all_weaknesses = {enemy: counterData.get(enemy, {}).get("Weaknesses", "") for enemy in enemies}
+        
+        # Get hero tips
+        hero_summaries = get_hero_summaries()
+        hero_tips = {counter: hero_summaries.get(counter, f"Use {counter}'s abilities to counter multiple enemies.") for counter in top_counters}
+        
+        # Get hero difficulty ratings
+        hero_difficulty = get_hero_difficulty()
+        difficulties = {counter: hero_difficulty.get(counter, 2) for counter in top_counters}
+        difficulty_text = {counter: ["Easy", "Medium", "Hard"][difficulties[counter]-1] for counter in top_counters}
+        
+        # Find beginner-friendly recommendations (easy heroes with good effectiveness)
+        beginner_friendly = [counter for counter in top_counters 
+                            if difficulties.get(counter, 2) == 1 and counter_scores.get(counter, 0) >= 3.5]
 
-    return render_template('multi_counters.html',
-        enemies=enemies,
-        user_role=user_role,
-        counters_list=top_counters,
-        effectiveness=dict(sorted_counters),
-        individual_scores=individual_scores,
-        hero_tips=hero_tips,
-        difficulties=difficulties,
-        difficulty_text=difficulty_text,
-        beginner_friendly=beginner_friendly,
-        all_weaknesses=all_weaknesses,
-        hero_difficulty=hero_difficulty,
-        difficulty_labels=difficulty_labels,
-        hero_image_url=get_hero_image_url
+        return render_template('multi_counters.html',
+            enemies=enemies,
+            user_role=role,
+            counters_list=top_counters,
+            effectiveness=dict(sorted_counters),
+            individual_scores=individual_scores,
+            hero_tips=hero_tips,
+            difficulties=difficulties,
+            difficulty_text=difficulty_text,
+            beginner_friendly=beginner_friendly,
+            all_weaknesses=all_weaknesses,
+            hero_difficulty=hero_difficulty,
+            difficulty_labels={1: "Easy", 2: "Medium", 3: "Hard"},
+            hero_image_url=get_hero_image_url,
+            logged_in=session.get('logged_in', False),
+            user_id=session.get('user_id', None)
+        )
+    except Exception as e:
+        flash(f'Error loading counter data: {str(e)}', 'error')
+        return redirect(url_for('multi_enemy_selection'))
+
+###########################################
+# GAME TRACKER ROUTES 
+###########################################
+
+@app.route('/tracker')
+def game_tracker():
+    """Main game tracker page"""
+    # Get user_id from session
+    user_id = session.get('user_id', None)
+    logged_in = session.get('logged_in', False)
+    
+    # Get hero and map data
+    hero_data, maps = get_game_data()
+    all_heroes = []
+    for role_heroes in hero_data.values():
+        all_heroes.extend(role_heroes)
+    all_heroes.sort()
+    
+    recent_games = []
+    hero_stats = []
+    
+    if user_id and logged_in:
+        # Get recent games for this user
+        conn = sqlite3.connect('overwatch_app.db')
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+        
+        c.execute('''
+        SELECT * FROM games 
+        WHERE user_id = ? 
+        ORDER BY created_at DESC
+        LIMIT 10
+        ''', (user_id,))
+        recent_games = c.fetchall()
+        
+        # Get hero statistics
+        c.execute('''
+        SELECT * FROM hero_stats
+        WHERE user_id = ?
+        ORDER BY games_played DESC
+        ''', (user_id,))
+        hero_stats = c.fetchall()
+        
+        conn.close()
+    
+    return render_template('game_tracker.html',
+        recent_games=recent_games,
+        hero_stats=hero_stats,
+        all_heroes=all_heroes,
+        hero_data=hero_data,
+        maps=maps,
+        roles=["Tank", "Damage", "Support"],
+        get_hero_image_url=get_hero_image_url,
+        user_id=user_id,
+        logged_in=logged_in
     )
 
-# API route to get hero data in JSON format (for potential future frontend work)
-@app.route('/api/heroes', methods=['GET'])
-def get_heroes():
-    return jsonify(counterData)
+@app.route('/add_game', methods=['POST'])
+@login_required
+def add_game():
+    """Add a new game to the tracker"""
+    user_id = session['user_id']
+    
+    # Get form data
+    map_name = request.form.get('map', '')
+    hero_played = request.form.get('hero', '')
+    role = request.form.get('role', '')
+    result = request.form.get('result', '')
+    sr_change = request.form.get('sr_change', 0)
+    
+    # Validate sr_change is an integer
+    try:
+        sr_change = int(sr_change)
+    except ValueError:
+        sr_change = 0
+    
+    enemy_team = request.form.get('enemy_team', '')
+    notes = request.form.get('notes', '')
+    
+    # Connect to database
+    conn = sqlite3.connect('overwatch_app.db')
+    c = conn.cursor()
+    
+    # Insert game record
+    c.execute('''
+    INSERT INTO games (user_id, map, hero_played, role, result, sr_change, enemy_team, notes)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (user_id, map_name, hero_played, role, result, sr_change, enemy_team, notes))
+    
+    # Update stats for this hero
+    c.execute('''
+    INSERT INTO hero_stats (user_id, hero, role, games_played, wins, losses, draws, average_sr_change)
+    VALUES (?, ?, ?, 1, ?, ?, ?, ?)
+    ON CONFLICT(user_id, hero) DO UPDATE SET
+        games_played = games_played + 1,
+        wins = wins + CASE WHEN ? = 'win' THEN 1 ELSE 0 END,
+        losses = losses + CASE WHEN ? = 'loss' THEN 1 ELSE 0 END,
+        draws = draws + CASE WHEN ? = 'draw' THEN 1 ELSE 0 END,
+        average_sr_change = (average_sr_change * games_played + ?) / (games_played + 1)
+    ''', (
+        user_id, 
+        hero_played,
+        role, 
+        1 if result == 'win' else 0,
+        1 if result == 'loss' else 0,
+        1 if result == 'draw' else 0,
+        sr_change,
+        result, result, result,
+        sr_change
+    ))
+    
+    conn.commit()
+    conn.close()
+    
+    flash('Game added successfully!', 'success')
+    return redirect(url_for('game_tracker'))
 
-# API route to get counter recommendations for a specific enemy
-@app.route('/api/counters/<string:enemy>/<string:role>', methods=['GET'])
-def get_counters(enemy, role):
-    if enemy not in counterData:
-        return jsonify({"error": "Enemy hero not found"}), 404
-    if role not in ["Tank", "Damage", "Support"]:
-        return jsonify({"error": "Invalid role"}), 400
+@app.route('/delete_game/<int:game_id>', methods=['POST'])
+@login_required
+def delete_game(game_id):
+    """Delete a game record"""
+    user_id = session['user_id']
     
-    counters = counterData[enemy][role]
-    return jsonify({
-        "enemy": enemy,
-        "role": role,
-        "counters": counters,
-        "weaknesses": counterData[enemy]["Weaknesses"]
-    })
+    conn = sqlite3.connect('overwatch_app.db')
+    c = conn.cursor()
+    
+    # Get game details before deletion to update stats
+    c.execute('SELECT hero_played, role, result, sr_change FROM games WHERE id = ? AND user_id = ?', 
+             (game_id, user_id))
+    game = c.fetchone()
+    
+    if game:
+        hero_played, role, result, sr_change = game
+        
+        # Delete the game
+        c.execute('DELETE FROM games WHERE id = ? AND user_id = ?', (game_id, user_id))
+        
+        # Update hero stats
+        if result == 'win':
+            win_adj, loss_adj, draw_adj = -1, 0, 0
+        elif result == 'loss':
+            win_adj, loss_adj, draw_adj = 0, -1, 0
+        elif result == 'draw':
+            win_adj, loss_adj, draw_adj = 0, 0, -1
+        else:
+            win_adj, loss_adj, draw_adj = 0, 0, 0
+        
+        c.execute('''
+        UPDATE hero_stats 
+        SET games_played = games_played - 1,
+            wins = wins + ?,
+            losses = losses + ?,
+            draws = draws + ?
+        WHERE user_id = ? AND hero = ? AND games_played > 0
+        ''', (win_adj, loss_adj, draw_adj, user_id, hero_played))
+        
+        # If hero has no games left, remove the record
+        c.execute('''
+        DELETE FROM hero_stats
+        WHERE user_id = ? AND hero = ? AND games_played <= 0
+        ''', (user_id, hero_played))
+        
+        conn.commit()
+        flash('Game deleted successfully!', 'success')
+    else:
+        flash('Game not found!', 'error')
+    
+    conn.close()
+    return redirect(url_for('game_tracker'))
 
-# API route to get counter recommendations for multiple enemies
-@app.route('/api/multi_counters', methods=['POST'])
-def get_multi_counters():
-    data = request.get_json()
-    if not data:
-        return jsonify({"error": "No data provided"}), 400
-        
-    enemies = data.get('enemies', [])
-    role = data.get('role', '')
+@app.route('/hero_stats/<hero>')
+@login_required
+def hero_stats(hero):
+    """Detailed view of a specific hero's performance"""
+    user_id = session['user_id']
     
-    if not enemies:
-        return jsonify({"error": "No enemies specified"}), 400
-    if role not in ["Tank", "Damage", "Support"]:
-        return jsonify({"error": "Invalid role"}), 400
+    conn = sqlite3.connect('overwatch_app.db')
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
     
-    # Get all heroes in the selected role
-    role_heroes = heroes_by_role[role]
+    # Get hero stats
+    c.execute('''
+    SELECT * FROM hero_stats
+    WHERE user_id = ? AND hero = ?
+    ''', (user_id, hero))
+    stats = c.fetchone()
     
-    # Calculate effectiveness against the enemy team
-    counter_scores = {}
-    for hero in role_heroes:
-        counter_scores[hero] = 0
-        for enemy in enemies:
-            if enemy in counterData:  # Make sure the enemy exists in our data
-                counter_scores[hero] += get_counter_difficulty(hero, enemy)
-        
-        # Average the score
-        if len(enemies) > 0:
-            counter_scores[hero] /= len(enemies)
+    # Get all games with this hero
+    c.execute('''
+    SELECT * FROM games
+    WHERE user_id = ? AND hero_played = ?
+    ORDER BY created_at DESC
+    ''', (user_id, hero))
+    games = c.fetchall()
     
-    # Sort by effectiveness
-    sorted_counters = sorted(counter_scores.items(), key=lambda x: x[1], reverse=True)
-    top_counters = sorted_counters[:5]  # Top 5 counters
+    # Get map performance
+    c.execute('''
+    SELECT map, 
+           COUNT(*) as games_played,
+           SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END) as wins,
+           SUM(CASE WHEN result = 'loss' THEN 1 ELSE 0 END) as losses
+    FROM games
+    WHERE user_id = ? AND hero_played = ?
+    GROUP BY map
+    ORDER BY wins DESC
+    ''', (user_id, hero))
+    map_stats = c.fetchall()
     
-    # Get weaknesses for all enemies
-    all_weaknesses = {enemy: counterData.get(enemy, {}).get("Weaknesses", "") 
-                     for enemy in enemies if enemy in counterData}
+    conn.close()
     
-    return jsonify({
-        "enemies": enemies,
-        "role": role,
-        "counters": dict(top_counters),
-        "all_weaknesses": all_weaknesses
-    })
+    # Get hero role for UI styling
+    hero_data, _ = get_game_data()
+    hero_role = get_hero_role(hero, hero_data)
+    
+    return render_template('hero_stats.html',
+        hero=hero,
+        hero_role=hero_role,
+        stats=stats,
+        games=games,
+        map_stats=map_stats,
+        get_hero_image_url=get_hero_image_url,
+        logged_in=session.get('logged_in', False),
+        user_id=session.get('user_id', None)
+    )
+
+@app.route('/overall_stats')
+@login_required
+def overall_stats():
+    """Overall statistics view"""
+    user_id = session['user_id']
+    
+    conn = sqlite3.connect('overwatch_app.db')
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    
+    # Get overall stats
+    c.execute('''
+    SELECT 
+        COUNT(*) as total_games,
+        SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END) as total_wins,
+        SUM(CASE WHEN result = 'loss' THEN 1 ELSE 0 END) as total_losses,
+        SUM(CASE WHEN result = 'draw' THEN 1 ELSE 0 END) as total_draws,
+        AVG(sr_change) as avg_sr_change
+    FROM games
+    WHERE user_id = ?
+    ''', (user_id,))
+    overall = c.fetchone()
+    
+    # Get role stats
+    c.execute('''
+    SELECT 
+        role,
+        COUNT(*) as games_played,
+        SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END) as wins,
+        SUM(CASE WHEN result = 'loss' THEN 1 ELSE 0 END) as losses,
+        SUM(CASE WHEN result = 'draw' THEN 1 ELSE 0 END) as draws
+    FROM games
+    WHERE user_id = ?
+    GROUP BY role
+    ''', (user_id,))
+    role_stats = c.fetchall()
+    
+    # Get best heroes by win rate (min 3 games)
+    c.execute('''
+    SELECT 
+        hero,
+        role,
+        games_played,
+        wins,
+        CAST(wins as FLOAT) / games_played as win_rate,
+        average_sr_change
+    FROM hero_stats
+    WHERE user_id = ? AND games_played >= 3
+    ORDER BY win_rate DESC
+    LIMIT 5
+    ''', (user_id,))
+    best_heroes = c.fetchall()
+    
+    # Get recent SR trend
+    c.execute('''
+    SELECT created_at, sr_change, result
+    FROM games
+    WHERE user_id = ?
+    ORDER BY created_at ASC
+    LIMIT 20
+    ''', (user_id,))
+    sr_trend = c.fetchall()
+    
+    conn.close()
+    
+    return render_template('overall_stats.html',
+        overall=overall,
+        role_stats=role_stats,
+        best_heroes=best_heroes,
+        sr_trend=sr_trend,
+        get_hero_image_url=get_hero_image_url,
+        logged_in=session.get('logged_in', False),
+        user_id=session.get('user_id', None)
+    )
+
+# Initialize database when app starts
+with app.app_context():
+    init_db()
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=False)

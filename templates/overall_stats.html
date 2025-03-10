@@ -1,0 +1,465 @@
+{% extends "base.html" %}
+
+{% block title %}My Stats - Overwatch{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header bg-transparent">
+                <h3 class="text-center mb-0" style="color: #f99e1a;">Overall Performance</h3>
+            </div>
+            <div class="card-body">
+                {% if overall and overall['total_games'] > 0 %}
+                <div class="row text-center mb-4">
+                    <div class="col-4">
+                        <div class="stat-circle win-circle">
+                            <span class="display-6">{{ overall['total_wins'] }}</span>
+                            <span class="small">Wins</span>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="stat-circle loss-circle">
+                            <span class="display-6">{{ overall['total_losses'] }}</span>
+                            <span class="small">Losses</span>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="stat-circle draw-circle">
+                            <span class="display-6">{{ overall['total_draws'] }}</span>
+                            <span class="small">Draws</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mb-4">
+                    <h5 class="mb-2">Win Rate</h5>
+                    <div class="effectiveness">
+                        {% if overall['total_games'] > 0 %}
+                            <div class="effectiveness-fill" style="width: {{ (overall['total_wins'] / overall['total_games'] * 100)|round|int }}%"></div>
+                        {% else %}
+                            <div class="effectiveness-fill" style="width: 0%"></div>
+                        {% endif %}
+                    </div>
+                    <div class="text-center mt-2">
+                        {% if overall['total_games'] > 0 %}
+                            <strong>{{ (overall['total_wins'] / overall['total_games'] * 100)|round|int }}%</strong> ({{ overall['total_wins'] }}/{{ overall['total_games'] }})
+                        {% else %}
+                            <strong>0%</strong> (0/0)
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="mb-4">
+                    <h5 class="mb-2">Average SR Change</h5>
+                    <div class="text-center">
+                        {% if overall['avg_sr_change'] is not none %}
+                            <span class="sr-display {% if overall['avg_sr_change'] > 0 %}text-success{% elif overall['avg_sr_change'] < 0 %}text-danger{% else %}text-warning{% endif %}">
+                                {% if overall['avg_sr_change'] > 0 %}+{% endif %}{{ overall['avg_sr_change']|round(1) }}
+                            </span>
+                        {% else %}
+                            <span class="sr-display text-warning">0.0</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <p>No games recorded yet.</p>
+                    <p>Start tracking your games to see statistics here!</p>
+                </div>
+                {% endif %}
+                
+                <div class="d-grid mt-4">
+                    <a href="{{ url_for('game_tracker') }}" class="btn btn-outline-light">Back to Tracker</a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header bg-transparent">
+                <h3 class="text-center mb-0" style="color: #f99e1a;">Role Performance</h3>
+            </div>
+            <div class="card-body">
+                {% if role_stats and role_stats|length > 0 %}
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover">
+                        <thead>
+                            <tr>
+                                <th>Role</th>
+                                <th>Games</th>
+                                <th>Wins</th>
+                                <th>Win Rate</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for role in role_stats %}
+                            <tr>
+                                <td>
+                                    <div class="role-badge {{ role['role']|lower }}-bg">{{ role['role'] }}</div>
+                                </td>
+                                <td>{{ role['games_played'] }}</td>
+                                <td class="text-success">{{ role['wins'] }}</td>
+                                <td>
+                                    {% if role['games_played'] > 0 %}
+                                    <div class="effectiveness">
+                                        <div class="effectiveness-fill" style="width: {{ (role['wins'] / role['games_played'] * 100)|round|int }}%"></div>
+                                    </div>
+                                    <small>{{ (role['wins'] / role['games_played'] * 100)|round|int }}%</small>
+                                    {% else %}
+                                    <div class="effectiveness">
+                                        <div class="effectiveness-fill" style="width: 0%"></div>
+                                    </div>
+                                    <small>0%</small>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <p>No role data available.</p>
+                    <p>Play games with different roles to see comparisons.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <div class="card-header bg-transparent">
+                <h3 class="text-center mb-0" style="color: #f99e1a;">SR Trend</h3>
+            </div>
+            <div class="card-body">
+                {% if sr_trend and sr_trend|length > 0 %}
+                <div class="chart-container">
+                    <canvas id="srChart"></canvas>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <p class="mb-1">Not enough games to display SR trend.</p>
+                    <p>Add more games with SR changes to visualize your progression.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header bg-transparent">
+                <h3 class="text-center mb-0" style="color: #f99e1a;">Best Heroes</h3>
+            </div>
+            <div class="card-body">
+                {% if best_heroes and best_heroes|length > 0 %}
+                <div class="row">
+                    {% for hero in best_heroes %}
+                    <div class="col-md-6 mb-3">
+                        <div class="hero-stat-card">
+                            <div class="d-flex align-items-center">
+                                <img src="{{ get_hero_image_url(hero['hero']) }}" class="hero-icon-small me-2" alt="{{ hero['hero'] }}">
+                                <div class="flex-grow-1">
+                                    <div class="d-flex justify-content-between">
+                                        <h5 class="mb-0">{{ hero['hero'] }}</h5>
+                                        <div class="role-badge {{ hero['role']|lower }}-bg">{{ hero['role'] }}</div>
+                                    </div>
+                                    <div class="d-flex justify-content-between mt-1">
+                                        <div class="small">{{ hero['wins'] }}-{{ hero['games_played'] - hero['wins'] }}</div>
+                                        <div class="small">{{ (hero['win_rate'] * 100)|round|int }}% Win Rate</div>
+                                    </div>
+                                    <div class="effectiveness mt-1">
+                                        <div class="effectiveness-fill" style="width: {{ (hero['win_rate'] * 100)|round|int }}%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <p class="mb-1">Play more games to see your best heroes!</p>
+                    <p>Heroes with at least 3 games played will appear here.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Enhanced styles for the Overall Stats page */
+    .sr-display {
+        font-size: 2.5rem;
+        font-weight: bold;
+        display: block;
+        margin: 15px 0;
+    }
+    
+    .role-badge {
+        display: inline-block;
+        padding: 3px 8px;
+        border-radius: 4px;
+        color: white;
+        font-weight: bold;
+        font-size: 0.85rem;
+    }
+    
+    .tank-bg {
+        background-color: #2980b9;
+    }
+    
+    .damage-bg {
+        background-color: #c0392b;
+    }
+    
+    .support-bg {
+        background-color: #27ae60;
+    }
+    
+    .hero-stat-card {
+        background-color: rgba(0, 0, 0, 0.2);
+        border-radius: 8px;
+        padding: 12px;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    
+    .hero-stat-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 4px 12px rgba(249, 158, 26, 0.3);
+    }
+    
+    /* Enhanced stat circles */
+    .stat-circle {
+        width: 90px;
+        height: 90px;
+        border-radius: 50%;
+        margin: 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        font-weight: bold;
+        box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    
+    .stat-circle:hover {
+        transform: scale(1.1);
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+    }
+    
+    .win-circle {
+        background-color: rgba(39, 174, 96, 0.2);
+        border: 3px solid #27ae60;
+        color: #27ae60;
+    }
+    
+    .loss-circle {
+        background-color: rgba(231, 76, 60, 0.2);
+        border: 3px solid #e74c3c;
+        color: #e74c3c;
+    }
+    
+    .draw-circle {
+        background-color: rgba(241, 196, 15, 0.2);
+        border: 3px solid #f1c40f;
+        color: #f1c40f;
+    }
+    
+    /* Enhanced effectiveness bar */
+    .effectiveness {
+        width: 100%;
+        height: 8px;
+        background-color: rgba(231, 76, 60, 0.3);
+        border-radius: 4px;
+        overflow: hidden;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) inset;
+    }
+    
+    .effectiveness-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #2ecc71, #27ae60);
+        border-radius: 4px;
+        position: relative;
+        transition: width 1s ease-out;
+    }
+    
+    /* Card enhancements */
+    .card {
+        overflow: hidden;
+        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
+    }
+    
+    .card-header {
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .card-header::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(135deg, rgba(249, 158, 26, 0.2) 0%, rgba(33, 143, 254, 0.2) 100%);
+        pointer-events: none;
+    }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // SR Trend Chart
+    document.addEventListener('DOMContentLoaded', function() {
+        {% if sr_trend and sr_trend|length > 0 %}
+        const srCtx = document.getElementById('srChart').getContext('2d');
+        
+        // Extract dates and SR changes
+        const dates = [{% for entry in sr_trend %}'{{ entry['created_at']|truncate(10, true, '') }}'{% if not loop.last %}, {% endif %}{% endfor %}];
+        const srChanges = [{% for entry in sr_trend %}{{ entry['sr_change'] }}{% if not loop.last %}, {% endif %}{% endfor %}];
+        const results = [{% for entry in sr_trend %}'{{ entry['result'] }}'{% if not loop.last %}, {% endif %}{% endfor %}];
+        
+        // Generate point colors based on results
+        const pointColors = results.map(result => {
+            if (result === 'win') return '#27ae60';
+            if (result === 'loss') return '#e74c3c';
+            return '#f1c40f'; // draw
+        });
+        
+        // Calculate cumulative SR
+        let cumulativeSR = 0;
+        const srData = srChanges.map(change => {
+            cumulativeSR += change;
+            return cumulativeSR;
+        });
+        
+        const srChart = new Chart(srCtx, {
+            type: 'line',
+            data: {
+                labels: dates,
+                datasets: [{
+                    label: 'SR Change',
+                    data: srData,
+                    fill: {
+                        target: 'origin',
+                        above: 'rgba(39, 174, 96, 0.1)',
+                        below: 'rgba(231, 76, 60, 0.1)'
+                    },
+                    borderColor: '#218ffe',
+                    borderWidth: 2,
+                    tension: 0.2,
+                    pointBackgroundColor: pointColors,
+                    pointRadius: 5,
+                    pointHoverRadius: 7
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: '#f0edf2',
+                            font: {
+                                weight: 'bold'
+                            }
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        bodyFont: {
+                            size: 14
+                        },
+                        titleFont: {
+                            size: 16,
+                            weight: 'bold'
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        },
+                        ticks: {
+                            color: '#f0edf2',
+                            callback: function(value) {
+                                return value > 0 ? '+' + value : value;
+                            }
+                        },
+                        title: {
+                            display: true,
+                            text: 'Cumulative SR Change',
+                            color: '#f0edf2',
+                            font: {
+                                size: 14,
+                                weight: 'bold'
+                            }
+                        }
+                    },
+                    x: {
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        },
+                        ticks: {
+                            color: '#f0edf2'
+                        },
+                        title: {
+                            display: true,
+                            text: 'Date',
+                            color: '#f0edf2',
+                            font: {
+                                size: 14,
+                                weight: 'bold'
+                            }
+                        }
+                    }
+                },
+                interaction: {
+                    mode: 'nearest',
+                    intersect: false
+                },
+                animations: {
+                    tension: {
+                        duration: 1000,
+                        easing: 'linear'
+                    }
+                }
+            }
+        });
+        {% endif %}
+        
+        // Add animation to stat circles
+        const statCircles = document.querySelectorAll('.stat-circle');
+        statCircles.forEach((circle, index) => {
+            setTimeout(() => {
+                circle.style.opacity = '0';
+                circle.style.transform = 'scale(0.8)';
+                
+                setTimeout(() => {
+                    circle.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+                    circle.style.opacity = '1';
+                    circle.style.transform = 'scale(1)';
+                }, 50);
+            }, index * 100);
+        });
+        
+        // Add animation to hero stat cards
+        const heroCards = document.querySelectorAll('.hero-stat-card');
+        heroCards.forEach((card, index) => {
+            card.style.opacity = '0';
+            card.style.transform = 'translateY(20px)';
+            
+            setTimeout(() => {
+                card.style.transition = 'opacity 0.5s ease, transform 0.5s ease, box-shadow 0.3s ease';
+                card.style.opacity = '1';
+                card.style.transform = 'translateY(0)';
+            }, 300 + (index * 100));
+        });
+    });
+</script>
+{% endblock %}

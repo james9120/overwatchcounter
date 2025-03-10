@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>{% block title %}Overwatch 2 Counter Picker{% endblock %}</title>
+    <title>{% block title %}Overwatch Companion{% endblock %}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
     <style>
         /* Base styles */
         body {
@@ -21,6 +22,7 @@
             border: 2px solid #f99e1a;
             border-radius: 10px;
             box-shadow: 0 0 15px rgba(249, 158, 26, 0.5);
+            margin-bottom: 20px;
         }
         
         .btn-primary {
@@ -33,100 +35,43 @@
             border-color: #0d6efd;
         }
         
-        /* ======= STANDARDIZED ANIMATION SYSTEM ======= */
-        
-        /* Page transition animation */
-        .container {
-            opacity: 0;
-            animation: fadeIn 0.6s var(--ow-ease) forwards;
-        }
-        
-        /* Hero card animations */
-        .hero-card {
-            transition: transform 0.3s var(--ow-ease), box-shadow 0.3s var(--ow-ease);
-            cursor: pointer;
-            height: 100%;
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .hero-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 5px 15px rgba(249, 158, 26, 0.8);
-        }
-        
-        /* Light sweep animation - standardized for all cards */
-        .hero-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(135deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0) 100%);
-            transform: translateX(-100%);
-            transition: transform 0.6s var(--ow-ease);
-            pointer-events: none;
-        }
-        
-        .hero-card:hover::before {
-            transform: translateX(100%);
-        }
-        
-        /* Role-based hero icons and borders */
+        /* Hero icon styles */
         .hero-icon {
             width: 64px;
             height: 64px;
             border-radius: 8px;
             border: 2px solid #fff;
-            transition: transform 0.3s var(--ow-ease), box-shadow 0.3s var(--ow-ease);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
         }
         
-        /* Role-specific borders with standardized colors */
-        .tank-border {
-            border-color: var(--ow-tank-color);
+        .hero-icon-small {
+            width: 40px;
+            height: 40px;
+            border-radius: 5px;
+            border: 1px solid rgba(255, 255, 255, 0.5);
         }
         
-        .damage-border {
-            border-color: var(--ow-damage-color);
+        .hero-icon-xsmall {
+            width: 24px;
+            height: 24px;
+            border-radius: 4px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
         }
         
-        .support-border {
-            border-color: var(--ow-support-color);
+        /* Role-specific colors */
+        .tank {
+            color: #2980b9;
         }
         
-        .unknown-border {
-            border-color: var(--ow-neutral-color);
+        .damage {
+            color: #c0392b;
         }
         
-        /* Standardized role-specific glow effects */
-        .hero-card:hover .tank-border {
-            box-shadow: 0 0 15px var(--ow-tank-glow);
-            animation: pulseBorder 2s infinite;
+        .support {
+            color: #27ae60;
         }
         
-        .hero-card:hover .damage-border {
-            box-shadow: 0 0 15px var(--ow-damage-glow);
-            animation: pulseBorder 2s infinite;
-        }
-        
-        .hero-card:hover .support-border {
-            box-shadow: 0 0 15px var(--ow-support-glow);
-            animation: pulseBorder 2s infinite;
-        }
-        
-        .hero-card:hover .unknown-border {
-            box-shadow: 0 0 15px var(--ow-neutral-glow);
-            animation: pulseBorder 2s infinite;
-        }
-        
-        /* Standardized pulse animation */
-        @keyframes pulseBorder {
-            0%, 100% { transform: scale(1); opacity: 0.8; }
-            50% { transform: scale(1.05); opacity: 1; }
-        }
-        
-        /* Effectiveness bar styles */
+        /* Effectiveness bar */
         .effectiveness {
             width: 100%;
             height: 6px;
@@ -142,48 +87,173 @@
             background-color: #2ecc71;
             border-radius: 3px;
             position: relative;
-            transition: width 1s var(--ow-ease-out);
+            transition: width 1s ease-out;
         }
         
-        .effectiveness-highlight {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 30px;
+        /* Stat circles */
+        .stat-circle {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            font-weight: bold;
+            transition: transform 0.3s ease;
+        }
+        
+        .stat-circle:hover {
+            transform: scale(1.1);
+        }
+        
+        .win-circle {
+            background-color: rgba(39, 174, 96, 0.2);
+            border: 2px solid #27ae60;
+            color: #27ae60;
+        }
+        
+        .loss-circle {
+            background-color: rgba(231, 76, 60, 0.2);
+            border: 2px solid #e74c3c;
+            color: #e74c3c;
+        }
+        
+        .draw-circle {
+            background-color: rgba(241, 196, 15, 0.2);
+            border: 2px solid #f1c40f;
+            color: #f1c40f;
+        }
+        
+        /* Hero card styles */
+        .hero-card {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
             height: 100%;
-            background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.8) 50%, rgba(255,255,255,0) 100%);
-            transform: translateX(-100%);
-            z-index: 2;
         }
         
-        .hero-card:hover .effectiveness-highlight {
-            animation: shimmer 1.5s infinite;
+        .hero-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(249, 158, 26, 0.8);
         }
         
-        /* Page-specific component animations */
-        .role-card {
-            transform: translateY(50px);
-            opacity: 0;
-            animation: slideUp 0.5s var(--ow-ease-out) forwards;
-            transition: transform 0.3s var(--ow-ease), box-shadow 0.3s var(--ow-ease);
+        /* Table styles */
+        .table-dark {
+            background-color: rgba(0, 0, 0, 0.4);
+            border-radius: 8px;
             overflow: hidden;
         }
         
-        .tank-card {
-            animation-delay: 0.1s;
+        /* Role-specific borders */
+        .tank-border {
+            border-color: #2980b9;
         }
         
-        .damage-card {
-            animation-delay: 0.2s;
+        .damage-border {
+            border-color: #c0392b;
         }
         
-        .support-card {
-            animation-delay: 0.3s;
+        .support-border {
+            border-color: #27ae60;
         }
         
-        /* Card animation for counter results */
-        .hero-counter-card {
-            transition: all 0.3s var(--ow-ease);
+        /* Chart containers */
+        .chart-container {
+            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 15px;
+            height: 250px;
+        }
+        
+        /* Search box */
+        .search-box {
+            background-color: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            color: white;
+        }
+        
+        .search-box:focus {
+            background-color: rgba(0, 0, 0, 0.6);
+            color: white;
+            border-color: #f99e1a;
+            box-shadow: 0 0 0 0.2rem rgba(249, 158, 26, 0.25);
+        }
+        
+        .search-box::placeholder {
+            color: rgba(255, 255, 255, 0.7);
+        }
+        
+        /* Dropdown styling */
+        select.form-select option {
+            background-color: #1a1a1a;
+            color: white;
+        }
+
+        select.form-select optgroup {
+            background-color: #1a1a1a;
+            color: #f99e1a;
+        }
+        
+        /* Role-specific backgrounds */
+        .tank-bg {
+            background-color: rgba(41, 128, 185, 0.2);
+        }
+        
+        .damage-bg {
+            background-color: rgba(192, 57, 43, 0.2);
+        }
+        
+        .support-bg {
+            background-color: rgba(39, 174, 96, 0.2);
+        }
+        
+        /* Feature buttons on index page */
+        .feature-button {
+            height: 180px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            text-decoration: none;
+            color: white;
+            margin-bottom: 20px;
+        }
+        
+        .feature-button:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+            color: white;
+        }
+        
+        .feature-icon {
+            font-size: 3rem;
+            margin-bottom: 10px;
+        }
+        
+        /* Counter picker specific styles */
+        .hero-weakness {
+            background-color: rgba(231, 76, 60, 0.2);
+            border-left: 4px solid #e74c3c;
+            padding: 10px;
+            margin-bottom: 15px;
+            transition: background-color 0.3s ease;
+        }
+        
+        .tip-card {
+            background-color: rgba(52, 152, 219, 0.1);
+            border-left: 4px solid #218ffe;
+            padding: 10px;
+            margin-bottom: 10px;
+            transition: background-color 0.3s ease;
+        }
+        
+        .beginner-friendly-section {
+            background-color: rgba(39, 174, 96, 0.2);
+            border-left: 4px solid #27ae60;
+            padding: 10px;
+            margin-bottom: 15px;
+            transition: background-color 0.3s ease;
         }
         
         /* Difficulty pips */
@@ -193,7 +263,7 @@
             border-radius: 50%;
             background-color: #444;
             margin-right: 4px;
-            transition: background-color 0.3s var(--ow-ease);
+            transition: background-color 0.3s ease;
         }
         
         .difficulty-pip.active {
@@ -212,204 +282,61 @@
             background-color: #e74c3c;  /* Red for hard */
         }
         
-        /* Filter buttons */
-        .filter-btn {
-            margin-right: 5px;
-            margin-bottom: 5px;
-            transition: transform 0.2s var(--ow-ease), background-color 0.2s var(--ow-ease), box-shadow 0.2s var(--ow-ease);
-        }
-        
-        .filter-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
-        }
-        
-        .filter-btn.active {
-            background-color: #f99e1a;
-            border-color: #f99e1a;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-        }
-        
-        /* Standardized animation keyframes */
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        
-        @keyframes slideUp {
-            to { transform: translateY(0); opacity: 1; }
-        }
-        
-        @keyframes shimmer {
-            0% { transform: translateX(-100%); }
-            100% { transform: translateX(400%); }
-        }
-        
-        @keyframes pulseGlow {
-            0%, 100% { transform: scale(1); opacity: 0.7; }
-            50% { transform: scale(1.05); opacity: 1; }
-        }
-        
-        @keyframes pulseText {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.8; }
-        }
-        
-        /* CSS Custom Properties for Standardized Values */
-        :root {
-            /* Animation timing */
-            --ow-duration-short: 0.2s;
-            --ow-duration-medium: 0.3s;
-            --ow-duration-long: 0.5s;
-            
-            /* Easing functions */
-            --ow-ease: cubic-bezier(0.25, 0.1, 0.25, 1.0);
-            --ow-ease-out: cubic-bezier(0.0, 0.0, 0.2, 1.0);
-            --ow-ease-in: cubic-bezier(0.42, 0.0, 1.0, 1.0);
-            
-            /* Role colors */
-            --ow-tank-color: #2980b9;
-            --ow-damage-color: #c0392b;
-            --ow-support-color: #27ae60;
-            --ow-neutral-color: #777;
-            
-            /* Glow strengths */
-            --ow-tank-glow: rgba(41, 128, 185, 0.7);
-            --ow-damage-glow: rgba(192, 57, 43, 0.7);
-            --ow-support-glow: rgba(39, 174, 96, 0.7);
-            --ow-neutral-glow: rgba(149, 165, 166, 0.7);
-            
-            /* Overwatch brand colors */
-            --ow-orange: #f99e1a;
-            --ow-blue: #218ffe;
-        }
-        
-        /* Media queries */
-        @media (max-width: 768px) {
-            .hero-card {
-                margin-bottom: 15px;
-            }
-        }
-        
-        /* Multi-enemy selection styles */
-        .selected-hero {
-            border-color: #2ecc71 !important;
-            box-shadow: 0 0 10px rgba(46, 204, 113, 0.7) !important;
-            transform: translateY(-3px);
-            transition: all 0.3s var(--ow-ease);
-        }
-        
-        .hero-selected-indicator {
-            position: absolute;
-            top: 5px;
-            right: 5px;
-            transition: all 0.3s var(--ow-ease);
-        }
-        
-        .hero-name {
-            font-weight: bold;
-            margin-top: 5px;
-            transition: color 0.3s var(--ow-ease);
-        }
-        
-        .hero-card:hover .hero-name {
-            color: var(--ow-orange);
-        }
-        
-        /* Results page styles */
-        .result-header {
-            background: linear-gradient(135deg, #f99e1a, #218ffe);
-            color: #fff;
-            padding: 1.5rem;
-            border-top-left-radius: 8px;
-            border-top-right-radius: 8px;
-        }
-        
-        .result-body {
-            padding: 1.5rem;
-            background-color: rgba(0, 0, 0, 0.7);
-            color: #f0edf2;
-        }
-        
-        /* Sections with standardized styles */
-        .hero-weakness {
-            background-color: rgba(231, 76, 60, 0.2);
-            border-left: 4px solid #e74c3c;
-            padding: 10px;
-            margin-bottom: 15px;
-            transition: background-color 0.3s var(--ow-ease);
-        }
-        
-        .hero-weakness:hover {
-            background-color: rgba(231, 76, 60, 0.3);
-        }
-        
-        .tip-card {
-            background-color: rgba(52, 152, 219, 0.1);
-            border-left: 4px solid #218ffe;
-            padding: 10px;
-            margin-bottom: 10px;
-            transition: background-color 0.3s var(--ow-ease);
-        }
-        
-        .tip-card:hover {
-            background-color: rgba(52, 152, 219, 0.2);
-        }
-        
-        .beginner-friendly-section {
-            background-color: rgba(39, 174, 96, 0.2);
-            border-left: 4px solid #27ae60;
-            padding: 10px;
-            margin-bottom: 15px;
-            transition: background-color 0.3s var(--ow-ease);
-        }
-        
-        .beginner-friendly-section:hover {
-            background-color: rgba(39, 174, 96, 0.3);
-        }
-        
-        /* Form elements */
-        .search-box {
-            background-color: rgba(255, 255, 255, 0.2);
-            border: 1px solid #f0edf2;
-            color: #f0edf2;
-            transition: all 0.3s var(--ow-ease);
-        }
-        
-        .search-box:focus {
-            background-color: rgba(255, 255, 255, 0.3);
-            box-shadow: 0 0 10px rgba(249, 158, 26, 0.3);
-        }
-        
-        .search-box::placeholder {
-            color: rgba(255, 255, 255, 0.7);
-        }
     </style>
+    {% block extra_css %}{% endblock %}
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark mb-4">
         <div class="container">
-            <a class="navbar-brand" href="{{ url_for('enemy_selection') }}">
+            <a class="navbar-brand" href="{{ url_for('index') }}">
                 <span style="color: #f99e1a; font-weight: bold;">OVERWATCH</span> 
-                <span style="color: #218ffe; font-weight: bold;">COUNTER</span>
+                <span style="color: #218ffe; font-weight: bold;">COMPANION</span>
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('enemy_selection') }}">Single Counter</a>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                            Counter Picker
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-dark">
+                            <li><a class="dropdown-item" href="{{ url_for('enemy_selection') }}">Single Hero Counter</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('multi_enemy_selection') }}">Team Counter Analysis</a></li>
+                        </ul>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('multi_enemy_selection') }}">Team Counter</a>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                            Game Tracker
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-dark">
+                            <li><a class="dropdown-item" href="{{ url_for('game_tracker') }}">Add Games</a></li>
+                            {% if logged_in %}
+                            <li><a class="dropdown-item" href="{{ url_for('overall_stats') }}">My Stats</a></li>
+                            {% endif %}
+                        </ul>
                     </li>
                 </ul>
                 <ul class="navbar-nav">
-                    <li class="nav-item">
-                        <a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#aboutModal">About</a>
-                    </li>
+                    {% if logged_in and user_id %}
+                        <li class="nav-item">
+                            <span class="nav-link">
+                                <i class="bi bi-person-circle"></i> {{ user_id }}
+                            </span>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('logout') }}">
+                                <i class="bi bi-box-arrow-right"></i> Logout
+                            </a>
+                        </li>
+                    {% else %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#userIdModal">
+                                <i class="bi bi-person-circle"></i> Login/Register
+                            </a>
+                        </li>
+                    {% endif %}
                 </ul>
             </div>
         </div>
@@ -419,51 +346,95 @@
         {% block content %}{% endblock %}
     </div>
     
-    <!-- About Modal -->
-    <div class="modal fade" id="aboutModal" tabindex="-1">
+    <!-- User ID Modal -->
+    <div class="modal fade" id="userIdModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content bg-dark text-light">
                 <div class="modal-header">
-                    <h5 class="modal-title">About Overwatch Counter Picker</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    <h5 class="modal-title">Account Management</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <p>This tool helps Overwatch 2 players find effective counter picks against enemy heroes.</p>
-                    <p>Select an enemy hero that's giving you trouble, then choose your preferred role to see recommended counters with tactical tips.</p>
-                    <p><strong>New Feature:</strong> Now you can select multiple enemy heroes and find the best counters for the entire enemy team!</p>
-                    <p>Data is based on general gameplay experience and may vary depending on skill level and gameplay style.</p>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <ul class="nav nav-tabs mb-3" id="authTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="login-tab" data-bs-toggle="tab" data-bs-target="#login" type="button" role="tab">Login</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="register-tab" data-bs-toggle="tab" data-bs-target="#register" type="button" role="tab">Register</button>
+                        </li>
+                    </ul>
+                    
+                    <div class="tab-content" id="authTabsContent">
+                        <!-- Login Form -->
+                        <div class="tab-pane fade show active" id="login" role="tabpanel">
+                            <form action="{{ url_for('set_user_id') }}" method="post">
+                                <input type="hidden" name="action" value="login">
+                                <div class="mb-3">
+                                    <label for="login_user_id" class="form-label">Tracker ID</label>
+                                    <input type="text" class="form-control search-box" id="login_user_id" name="user_id" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="login_password" class="form-label">Password</label>
+                                    <input type="password" class="form-control search-box" id="login_password" name="password" required>
+                                </div>
+                                <button type="submit" class="btn btn-primary">Login</button>
+                            </form>
+                        </div>
+                        
+                        <!-- Register Form -->
+                        <div class="tab-pane fade" id="register" role="tabpanel">
+                            <form action="{{ url_for('set_user_id') }}" method="post">
+                                <input type="hidden" name="action" value="register">
+                                <div class="mb-3">
+                                    <label for="register_user_id" class="form-label">Choose Tracker ID</label>
+                                    <input type="text" class="form-control search-box" id="register_user_id" name="user_id" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="register_password" class="form-label">Choose Password</label>
+                                    <input type="password" class="form-control search-box" id="register_password" name="password" required>
+                                    <div class="form-text text-light">Password must be at least 8 characters long</div>
+                                </div>
+                                <button type="submit" class="btn btn-primary">Register</button>
+                            </form>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
     
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="position-fixed top-0 end-0 p-3" style="z-index: 1050">
+                {% for category, message in messages %}
+                    <div class="toast align-items-center text-white bg-{{ 'success' if category == 'success' else 'danger' }} border-0" role="alert" aria-live="assertive" aria-atomic="true">
+                        <div class="d-flex">
+                            <div class="toast-body">
+                                {{ message }}
+                            </div>
+                            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
     
-    <!-- Standardized Animation Handling -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
     <script>
+        // Initialize toasts
         document.addEventListener('DOMContentLoaded', function() {
-            // Fade in any loading elements if present
-            const loadingElements = document.querySelectorAll('.loading-element');
-            loadingElements.forEach(el => {
-                setTimeout(() => {
-                    el.classList.add('loaded');
-                }, 300);
-            });
-            
-            // Initialize any staggered card animations
-            const animCards = document.querySelectorAll('.anim-stagger');
-            animCards.forEach((card, index) => {
-                card.style.opacity = '0';
-                card.style.transform = 'translateY(20px)';
-                
-                setTimeout(() => {
-                    card.style.transition = 'opacity 0.5s var(--ow-ease-out), transform 0.5s var(--ow-ease-out)';
-                    card.style.opacity = '1';
-                    card.style.transform = 'translateY(0)';
-                }, 100 * index);
+            var toastElList = [].slice.call(document.querySelectorAll('.toast'));
+            var toastList = toastElList.map(function(toastEl) {
+                var toast = new bootstrap.Toast(toastEl, {
+                    autohide: true,
+                    delay: 3000
+                });
+                toast.show();
+                return toast;
             });
         });
     </script>
